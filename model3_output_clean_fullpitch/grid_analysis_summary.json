@@ -1,0 +1,238 @@
+{
+  "teamA": {
+    "name": "{'id': 1802, 'name': 'Brisbane Roar FC', 'short_name': 'Brisbane FC', 'acronym': 'BRR'}",
+    "focal_point": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "total_control": 0.0,
+    "cells": [
+      {
+        "row": 1,
+        "col": 1,
+        "bounds": {
+          "left": -52.5,
+          "right": -17.5,
+          "bottom": -34.0,
+          "top": -11.333333333333332
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 1,
+        "col": 2,
+        "bounds": {
+          "left": -17.5,
+          "right": 17.5,
+          "bottom": -34.0,
+          "top": -11.333333333333332
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 1,
+        "col": 3,
+        "bounds": {
+          "left": 17.5,
+          "right": 52.5,
+          "bottom": -34.0,
+          "top": -11.333333333333332
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 2,
+        "col": 1,
+        "bounds": {
+          "left": -52.5,
+          "right": -17.5,
+          "bottom": -11.333333333333332,
+          "top": 11.333333333333336
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 2,
+        "col": 2,
+        "bounds": {
+          "left": -17.5,
+          "right": 17.5,
+          "bottom": -11.333333333333332,
+          "top": 11.333333333333336
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 2,
+        "col": 3,
+        "bounds": {
+          "left": 17.5,
+          "right": 52.5,
+          "bottom": -11.333333333333332,
+          "top": 11.333333333333336
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 3,
+        "col": 1,
+        "bounds": {
+          "left": -52.5,
+          "right": -17.5,
+          "bottom": 11.333333333333336,
+          "top": 34.0
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 3,
+        "col": 2,
+        "bounds": {
+          "left": -17.5,
+          "right": 17.5,
+          "bottom": 11.333333333333336,
+          "top": 34.0
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 3,
+        "col": 3,
+        "bounds": {
+          "left": 17.5,
+          "right": 52.5,
+          "bottom": 11.333333333333336,
+          "top": 34.0
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      }
+    ]
+  },
+  "teamB": {
+    "name": "{'id': 871, 'name': 'Perth Glory Football Club', 'short_name': 'Perth Glory', 'acronym': 'PER'}",
+    "focal_point": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "total_control": 0.0,
+    "cells": [
+      {
+        "row": 1,
+        "col": 1,
+        "bounds": {
+          "left": -52.5,
+          "right": -17.5,
+          "bottom": -34.0,
+          "top": -11.333333333333332
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 1,
+        "col": 2,
+        "bounds": {
+          "left": -17.5,
+          "right": 17.5,
+          "bottom": -34.0,
+          "top": -11.333333333333332
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 1,
+        "col": 3,
+        "bounds": {
+          "left": 17.5,
+          "right": 52.5,
+          "bottom": -34.0,
+          "top": -11.333333333333332
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 2,
+        "col": 1,
+        "bounds": {
+          "left": -52.5,
+          "right": -17.5,
+          "bottom": -11.333333333333332,
+          "top": 11.333333333333336
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 2,
+        "col": 2,
+        "bounds": {
+          "left": -17.5,
+          "right": 17.5,
+          "bottom": -11.333333333333332,
+          "top": 11.333333333333336
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 2,
+        "col": 3,
+        "bounds": {
+          "left": 17.5,
+          "right": 52.5,
+          "bottom": -11.333333333333332,
+          "top": 11.333333333333336
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 3,
+        "col": 1,
+        "bounds": {
+          "left": -52.5,
+          "right": -17.5,
+          "bottom": 11.333333333333336,
+          "top": 34.0
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 3,
+        "col": 2,
+        "bounds": {
+          "left": -17.5,
+          "right": 17.5,
+          "bottom": 11.333333333333336,
+          "top": 34.0
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      },
+      {
+        "row": 3,
+        "col": 3,
+        "bounds": {
+          "left": 17.5,
+          "right": 52.5,
+          "bottom": 11.333333333333336,
+          "top": 34.0
+        },
+        "mean_control": 0.0,
+        "percent_of_team": 0.0
+      }
+    ]
+  }
+}

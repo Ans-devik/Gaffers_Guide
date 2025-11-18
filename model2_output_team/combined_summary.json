@@ -1,0 +1,13 @@
+{
+  "fps_used": 25,
+  "teams": {
+    "A": {
+      "name": "{'id': 1802, 'name': 'Brisbane Roar FC', 'short_name': 'Brisbane FC', 'acronym': 'BRR'}",
+      "num_players": 16
+    },
+    "B": {
+      "name": "{'id': 871, 'name': 'Perth Glory Football Club', 'short_name': 'Perth Glory', 'acronym': 'PER'}",
+      "num_players": 16
+    }
+  }
+}

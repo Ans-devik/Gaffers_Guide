@@ -1,0 +1,250 @@
+# cd /Users/nishoosingh/Downloads/model
+
+# # overwrite the adaptive script with a fixed, robust version that detects attacking_focal_value etc.
+# cat > model3_adaptive_thresholds.py <<'PY'
+#!/usr/bin/env python3
+# """
+# model3_adaptive_thresholds.py (fixed)
+# Robust re-classifier that supports attacking_focal_value / attacking_presence keys.
+# Writes model3_results_adaptive.json and .csv
+# """
+import json, argparse
+from pathlib import Path
+import numpy as np
+import pandas as pd
+from collections import Counter
+
+def build_adaptive_thresholds(features_df, policy=None, n_matches=None):
+    if policy is None:
+        policy = {
+            'attacking_score': {'method':'quantile', 'q':0.66, 'tune_min_frac': None},
+            'midfield_presence': {'method':'range_quantile', 'q_low':0.33, 'q_high':0.67},
+            'defensive_presence': {'method':'quantile', 'q':0.33, 'tune_min_frac': None}
+        }
+    thr = {}
+    if n_matches is None:
+        n_matches = len(features_df)
+    min_one_match_frac = 1.0 / max(1, n_matches)
+    for feat, opts in policy.items():
+        if feat not in features_df.columns:
+            raise KeyError(f"Feature '{feat}' missing from features_df columns: {list(features_df.columns)}")
+        if opts['method'] == 'quantile':
+            q = float(opts.get('q', 0.66))
+            base_thr = features_df[feat].quantile(q)
+            thr_val = base_thr
+            tune_min_frac = opts.get('tune_min_frac', None)
+            if tune_min_frac is None:
+                tune_min_frac = max(min_one_match_frac, 0.05)
+            qs = np.linspace(0.5, 0.99, 40)
+            found = False
+            for qtest in qs:
+                candidate = features_df[feat].quantile(qtest)
+                frac = (features_df[feat] >= candidate).mean()
+                if frac >= tune_min_frac:
+                    thr_val = candidate
+                    found = True
+                    break
+            if not found:
+                thr_val = base_thr
+            thr[feat] = float(thr_val)
+        elif opts['method'] == 'range_quantile':
+            ql = float(opts.get('q_low', 0.33)); qh = float(opts.get('q_high', 0.67))
+            low = float(features_df[feat].quantile(ql)); high = float(features_df[feat].quantile(qh))
+            thr[feat] = (low, high)
+        else:
+            raise ValueError(f"Unknown method {opts['method']} for feature {feat}")
+    return thr
+
+def label_match(row, thr):
+    reasons = []
+    a_val = float(row.get('attacking_score', np.nan))
+    a_thr = thr['attacking_score']
+    if np.isnan(a_val):
+        attacking_label = "Unknown Attacking"; reasons.append("attacking_score missing")
+    elif a_val >= a_thr:
+        attacking_label = "Central Creativity (Strong)|Left Half-Space Creativity"
+        reasons.append(f"attacking_score {a_val:.2f} >= {a_thr:.2f} (dominant)")
+    else:
+        attacking_label = "Less Creative Attacking"
+        reasons.append(f"attacking_score {a_val:.2f} < {a_thr:.2f}")
+
+    m_val = float(row.get('midfield_presence', np.nan))
+    mid_low, mid_high = thr['midfield_presence']
+    if np.isnan(m_val):
+        midfield_label = "Unknown Midfield"; reasons.append("midfield_presence missing")
+    else:
+        if m_val < mid_low:
+            midfield_label = "Low Midfield Presence"; reasons.append(f"midfield_presence {m_val:.2f} < {mid_low:.2f} -> low")
+        elif m_val < mid_high:
+            midfield_label = "Wing-Midfield Progression"; reasons.append(f"midfield_presence {m_val:.2f} between {mid_low:.2f} and {mid_high:.2f}")
+        else:
+            midfield_label = "Central Midfield Dominant"; reasons.append(f"midfield_presence {m_val:.2f} >= {mid_high:.2f}")
+
+    d_val = float(row.get('defensive_presence', np.nan))
+    d_thr = thr['defensive_presence']
+    if np.isnan(d_val):
+        defensive_label = "Unknown Defence"; reasons.append("defensive_presence missing")
+    elif d_val < d_thr:
+        defensive_label = "Solid Defence / Opponent Kept Out"; reasons.append(f"defensive_presence {d_val:.2f} < {d_thr:.2f}")
+    else:
+        defensive_label = "Open Defence / Vulnerable"; reasons.append(f"defensive_presence {d_val:.2f} >= {d_thr:.2f}")
+
+    if "Left Half-Space" in attacking_label or "Central Creativity" in attacking_label:
+        match_style = "Creative Half-Space Team"; reasons.append("attacking focal in half-space -> high-quality box entries")
+    else:
+        match_style = "Balanced/Other"
+    return attacking_label, midfield_label, defensive_label, match_style, reasons
+
+def build_features_df_from_results(results):
+    """
+    Robust extractor: detects multiple possible keys for attacking_score:
+      - attacking_score, attack_score, attack
+      - attacking_focal_value (preferred)
+      - attacking_presence (if focal_value missing we may use presence scaled)
+    Also normalizes midfield_presence / defensive_presence to percentages if values in 0..1.
+    """
+    rows = []
+    for m in results:
+        match_id = m.get('match_id') or m.get('id') or m.get('match') or m.get('matchId')
+        # helper to search many plausible keys and nested places
+        def find_val(keys):
+            for k in keys:
+                if k in m:
+                    return m[k]
+                if isinstance(m.get('features'), dict) and k in m['features']:
+                    return m['features'][k]
+                if isinstance(m.get('summary'), dict) and k in m['summary']:
+                    return m['summary'][k]
+                # also check nested under 'features' with alternatives
+                if isinstance(m.get('features'), dict):
+                    alt = m['features'].get(k + "_pct") or m['features'].get(k + "_percent")
+                    if alt is not None:
+                        return alt
+            return None
+
+        # prefer focal value if present
+        a = find_val(['attacking_focal_value','attacking_score','attack_score','attack','attacking_presence'])
+        mval = find_val(['midfield_presence','midfield','midfield_presence_pct','midfield_pct'])
+        dval = find_val(['defensive_presence','defence_presence','defensive_presence_pct','defence_pct','defensive_pct'])
+
+        def parse_num(v):
+            if v is None:
+                return np.nan
+            if isinstance(v, str):
+                s = v.strip()
+                if s.endswith('%'):
+                    try:
+                        return float(s[:-1])
+                    except:
+                        pass
+                try:
+                    return float(s)
+                except:
+                    return np.nan
+            if isinstance(v, (int, float)):
+                return float(v)
+            return np.nan
+
+        a_val = parse_num(a); m_val = parse_num(mval); d_val = parse_num(dval)
+        rows.append({'match_id': match_id, 'attacking_score_raw': a_val, 'midfield_presence_raw': m_val, 'defensive_presence_raw': d_val, 'raw_obj': m})
+
+    df = pd.DataFrame(rows)
+
+    # If attacking_score_raw seems to be a focal value between 0..1, convert to a 0..1 or 0..100 scale consistently.
+    # We'll keep attacking_score as the focal value (0..1) if max <=1.1, otherwise use as-is.
+    amax = df['attacking_score_raw'].max(skipna=True)
+    if not pd.isna(amax) and amax <= 1.1:
+        # keep attacking_score as-is (0..1); many thresholds were designed for values like 0.65
+        df['attacking_score'] = df['attacking_score_raw']
+    else:
+        # if values look like big numbers, keep them as-is
+        df['attacking_score'] = df['attacking_score_raw']
+
+    # convert midfield/defence to percentages if they are fractions
+    for col in ['midfield_presence_raw', 'defensive_presence_raw']:
+        colmax = df[col].max(skipna=True)
+        if pd.isna(colmax):
+            df[col.replace('_raw','')] = df[col]
+        else:
+            if colmax <= 1.1:
+                df[col.replace('_raw','')] = df[col] * 100.0
+            else:
+                df[col.replace('_raw','')] = df[col]
+
+    out = df[['match_id','attacking_score','midfield_presence','defensive_presence','raw_obj']].copy()
+    return out
+
+def main(results_path=None, min_frac=None, out_prefix="model3_results_adaptive"):
+    if results_path is None:
+        results_path = Path.cwd() / "model3_results.json"
+    else:
+        results_path = Path(results_path)
+    if not results_path.exists():
+        raise FileNotFoundError(f"results file not found: {results_path}")
+    with open(results_path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    if isinstance(data, dict) and 'matches' in data:
+        results_list = data['matches']
+    elif isinstance(data, list):
+        results_list = data
+    else:
+        if isinstance(data, dict):
+            cand = [v for v in data.values() if isinstance(v, dict) and ('match_id' in v or 'features' in v or 'attacking_focal_value' in v)]
+            if cand:
+                results_list = cand
+            else:
+                raise ValueError("Unrecognized model3_results.json structure; expected list or {'matches': [...]} or dict with match-like values.")
+        else:
+            raise ValueError("Unrecognized model3_results.json structure; expected list or dict.")
+    features_df = build_features_df_from_results(results_list)
+    n_matches = len(features_df); print(f"Loaded {n_matches} matches from {results_path}")
+    policy = {
+        'attacking_score': {'method':'quantile','q':0.66,'tune_min_frac': (min_frac if min_frac is not None else None)},
+        'midfield_presence': {'method':'range_quantile','q_low':0.33,'q_high':0.67},
+        'defensive_presence': {'method':'quantile','q':0.33,'tune_min_frac': (min_frac if min_frac is not None else None)}
+    }
+    thr = build_adaptive_thresholds(features_df[['attacking_score','midfield_presence','defensive_presence']], policy=policy, n_matches=n_matches)
+    print("Computed adaptive thresholds:")
+    for k,v in thr.items(): print(" ", k, ":", v)
+    reclassified=[]; counts = Counter()
+    for idx, row in features_df.iterrows():
+        att_lab, mid_lab, def_lab, style_lab, reasons = label_match(row, thr)
+        counts['attacking:' + att_lab] += 1; counts['midfield:' + mid_lab] += 1; counts['defensive:' + def_lab] += 1; counts['style:' + style_lab] += 1
+        entry = dict(row['raw_obj']) if isinstance(row['raw_obj'], dict) else {}
+        entry.update({
+            'match_id': row['match_id'],
+            'attacking_label_adaptive': att_lab,
+            'midfield_label_adaptive': mid_lab,
+            'defensive_label_adaptive': def_lab,
+            'match_style_adaptive': style_lab,
+            'classification_reasons': reasons
+        })
+        reclassified.append(entry)
+    print("\\nReclassification counts (summary):")
+    for k,v in counts.items(): print(f"  {k:40s} : {v}")
+    out_json = Path(f"{out_prefix}.json"); out_csv = Path(f"{out_prefix}.csv")
+    with open(out_json, "w", encoding="utf-8") as fh: json.dump(reclassified, fh, indent=2, ensure_ascii=False)
+    print("Saved reclassified JSON to", out_json)
+    rows = []
+    for r in reclassified:
+        rows.append({
+            'match_id': r.get('match_id'),
+            'attacking_label_adaptive': r.get('attacking_label_adaptive'),
+            'midfield_label_adaptive': r.get('midfield_label_adaptive'),
+            'defensive_label_adaptive': r.get('defensive_label_adaptive'),
+            'match_style_adaptive': r.get('match_style_adaptive')
+        })
+    pd.DataFrame(rows).to_csv(out_csv, index=False)
+    print("Saved CSV summary to", out_csv)
+
+if __name__ == "__main__":
+    p = argparse.ArgumentParser(description="Reclassify model3 results using adaptive thresholds")
+    p.add_argument("--results", help="Path to model3_results.json (default: ./model3_results.json)")
+    p.add_argument("--min_frac", type=float, default=None, help="Minimum fraction for tuned thresholds (e.g. 0.10). If not set, defaults to max(1/n_matches,0.05).")
+    p.add_argument("--out_prefix", default="model3_results_adaptive", help="Prefix for output JSON/CSV files")
+    args = p.parse_args()
+    main(results_path=args.results, min_frac=args.min_frac, out_prefix=args.out_prefix)
+# PY
+
+# # run the fixed adaptive re-classifier (adjust min_frac if you want, e.g. --min_frac 0.166)
+# /Users/nishoosingh/Downloads/model/venv/bin/python /Users/nishoosingh/Downloads/model/model3_adaptive_thresholds.py

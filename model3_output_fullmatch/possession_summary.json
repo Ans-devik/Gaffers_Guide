@@ -1,0 +1,32 @@
+{
+  "teamA_name": "TeamA",
+  "teamB_name": "TeamB",
+  "zone_names": [
+    "defensive",
+    "midfield",
+    "attacking"
+  ],
+  "possession": {
+    "defensive": {
+      "frames_with_data": 47942,
+      "teamA_possession_pct": 68.93,
+      "teamB_possession_pct": 31.07,
+      "teamA_poss_frames": 33047,
+      "teamB_poss_frames": 14895
+    },
+    "midfield": {
+      "frames_with_data": 47942,
+      "teamA_possession_pct": 43.12,
+      "teamB_possession_pct": 56.88,
+      "teamA_poss_frames": 20672,
+      "teamB_poss_frames": 27270
+    },
+    "attacking": {
+      "frames_with_data": 47942,
+      "teamA_possession_pct": 49.47,
+      "teamB_possession_pct": 50.53,
+      "teamA_poss_frames": 23718,
+      "teamB_poss_frames": 24224
+    }
+  }
+}

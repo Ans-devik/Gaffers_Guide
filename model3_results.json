@@ -1,0 +1,314 @@
+[
+  {
+    "match_id": "1886347",
+    "features": {
+      "attacking_focal": 3,
+      "attacking_focal_value": 0.684085510688836,
+      "attacking_presence": 74.60129946839929,
+      "midfield_focal": 3,
+      "midfield_presence": 18.84229178972239,
+      "defensive_focal": 3,
+      "defensive_presence": 6.556408741878323,
+      "match_id": "1886347"
+    },
+    "result": {
+      "attacking": {
+        "labels": [
+          "Central Creativity (Strong)",
+          "Left Half-Space Creativity"
+        ],
+        "reasons": [
+          "attacking_score 1.19 >= 0.65 (dominant)",
+          "Focal cell center-left (index 3)",
+          "attacking_focal_value=0.68, attacking_presence=74.6%"
+        ]
+      },
+      "midfield": {
+        "labels": [
+          "Wing-Midfield Progression"
+        ],
+        "reasons": [
+          "midfield_presence 18.8% between 12% and 25% -> routed via wide lanes",
+          "midfield focal in wide mid cell"
+        ]
+      },
+      "defensive": {
+        "labels": [
+          "Solid Defence / Opponent Kept Out"
+        ],
+        "reasons": [
+          "defensive_presence 6.6% < 12%",
+          "defensive_presence_raw=6.6%"
+        ]
+      },
+      "match_style": {
+        "labels": [
+          "Creative Half-Space Team"
+        ],
+        "reasons": [
+          "attacking focal in half-space -> high-quality box entries"
+        ]
+      }
+    }
+  },
+  {
+    "match_id": "1899585",
+    "features": {
+      "attacking_focal": 3,
+      "attacking_focal_value": 0.7058648407264067,
+      "attacking_presence": 71.27095268406535,
+      "midfield_focal": 3,
+      "midfield_presence": 21.090600466793973,
+      "defensive_focal": 3,
+      "defensive_presence": 7.638446849140674,
+      "match_id": "1899585"
+    },
+    "result": {
+      "attacking": {
+        "labels": [
+          "Central Creativity (Strong)",
+          "Left Half-Space Creativity"
+        ],
+        "reasons": [
+          "attacking_score 1.21 >= 0.65 (dominant)",
+          "Focal cell center-left (index 3)",
+          "attacking_focal_value=0.71, attacking_presence=71.3%"
+        ]
+      },
+      "midfield": {
+        "labels": [
+          "Wing-Midfield Progression"
+        ],
+        "reasons": [
+          "midfield_presence 21.1% between 12% and 25% -> routed via wide lanes",
+          "midfield focal in wide mid cell"
+        ]
+      },
+      "defensive": {
+        "labels": [
+          "Solid Defence / Opponent Kept Out"
+        ],
+        "reasons": [
+          "defensive_presence 7.6% < 12%",
+          "defensive_presence_raw=7.6%"
+        ]
+      },
+      "match_style": {
+        "labels": [
+          "Creative Half-Space Team"
+        ],
+        "reasons": [
+          "attacking focal in half-space -> high-quality box entries"
+        ]
+      }
+    }
+  },
+  {
+    "match_id": "1925299",
+    "features": {
+      "attacking_focal": 3,
+      "attacking_focal_value": 0.7145426515930113,
+      "attacking_presence": 74.55938697318007,
+      "midfield_focal": 3,
+      "midfield_presence": 18.773946360153257,
+      "defensive_focal": 3,
+      "defensive_presence": 6.666666666666667,
+      "match_id": "1925299"
+    },
+    "result": {
+      "attacking": {
+        "labels": [
+          "Central Creativity (Strong)",
+          "Left Half-Space Creativity"
+        ],
+        "reasons": [
+          "attacking_score 1.25 >= 0.65 (dominant)",
+          "Focal cell center-left (index 3)",
+          "attacking_focal_value=0.71, attacking_presence=74.6%"
+        ]
+      },
+      "midfield": {
+        "labels": [
+          "Wing-Midfield Progression"
+        ],
+        "reasons": [
+          "midfield_presence 18.8% between 12% and 25% -> routed via wide lanes",
+          "midfield focal in wide mid cell"
+        ]
+      },
+      "defensive": {
+        "labels": [
+          "Solid Defence / Opponent Kept Out"
+        ],
+        "reasons": [
+          "defensive_presence 6.7% < 12%",
+          "defensive_presence_raw=6.7%"
+        ]
+      },
+      "match_style": {
+        "labels": [
+          "Creative Half-Space Team"
+        ],
+        "reasons": [
+          "attacking focal in half-space -> high-quality box entries"
+        ]
+      }
+    }
+  },
+  {
+    "match_id": "1953632",
+    "features": {
+      "attacking_focal": 3,
+      "attacking_focal_value": 0.7082066869300911,
+      "attacking_presence": 81.8577648766328,
+      "midfield_focal": 3,
+      "midfield_presence": 13.912502591747874,
+      "defensive_focal": 3,
+      "defensive_presence": 4.229732531619324,
+      "match_id": "1953632"
+    },
+    "result": {
+      "attacking": {
+        "labels": [
+          "Central Creativity (Strong)",
+          "Left Half-Space Creativity"
+        ],
+        "reasons": [
+          "attacking_score 1.29 >= 0.65 (dominant)",
+          "Focal cell center-left (index 3)",
+          "attacking_focal_value=0.71, attacking_presence=81.9%"
+        ]
+      },
+      "midfield": {
+        "labels": [
+          "Wing-Midfield Progression"
+        ],
+        "reasons": [
+          "midfield_presence 13.9% between 12% and 25% -> routed via wide lanes",
+          "midfield focal in wide mid cell"
+        ]
+      },
+      "defensive": {
+        "labels": [
+          "Solid Defence / Opponent Kept Out"
+        ],
+        "reasons": [
+          "defensive_presence 4.2% < 12%",
+          "defensive_presence_raw=4.2%"
+        ]
+      },
+      "match_style": {
+        "labels": [
+          "Creative Half-Space Team"
+        ],
+        "reasons": [
+          "attacking focal in half-space -> high-quality box entries"
+        ]
+      }
+    }
+  },
+  {
+    "match_id": "1996435",
+    "features": {
+      "attacking_focal": 3,
+      "attacking_focal_value": 0.7159732922444787,
+      "attacking_presence": 73.58276643990929,
+      "midfield_focal": 3,
+      "midfield_presence": 20.691609977324262,
+      "defensive_focal": 3,
+      "defensive_presence": 5.72562358276644,
+      "match_id": "1996435"
+    },
+    "result": {
+      "attacking": {
+        "labels": [
+          "Central Creativity (Strong)",
+          "Left Half-Space Creativity"
+        ],
+        "reasons": [
+          "attacking_score 1.24 >= 0.65 (dominant)",
+          "Focal cell center-left (index 3)",
+          "attacking_focal_value=0.72, attacking_presence=73.6%"
+        ]
+      },
+      "midfield": {
+        "labels": [
+          "Wing-Midfield Progression"
+        ],
+        "reasons": [
+          "midfield_presence 20.7% between 12% and 25% -> routed via wide lanes",
+          "midfield focal in wide mid cell"
+        ]
+      },
+      "defensive": {
+        "labels": [
+          "Solid Defence / Opponent Kept Out"
+        ],
+        "reasons": [
+          "defensive_presence 5.7% < 12%",
+          "defensive_presence_raw=5.7%"
+        ]
+      },
+      "match_style": {
+        "labels": [
+          "Creative Half-Space Team"
+        ],
+        "reasons": [
+          "attacking focal in half-space -> high-quality box entries"
+        ]
+      }
+    }
+  },
+  {
+    "match_id": "2006229",
+    "features": {
+      "attacking_focal": 3,
+      "attacking_focal_value": 0.7057135403078528,
+      "attacking_presence": 76.79823682628731,
+      "midfield_focal": 3,
+      "midfield_presence": 16.87036665998798,
+      "defensive_focal": 3,
+      "defensive_presence": 6.331396513724704,
+      "match_id": "2006229"
+    },
+    "result": {
+      "attacking": {
+        "labels": [
+          "Central Creativity (Strong)",
+          "Left Half-Space Creativity"
+        ],
+        "reasons": [
+          "attacking_score 1.25 >= 0.65 (dominant)",
+          "Focal cell center-left (index 3)",
+          "attacking_focal_value=0.71, attacking_presence=76.8%"
+        ]
+      },
+      "midfield": {
+        "labels": [
+          "Wing-Midfield Progression"
+        ],
+        "reasons": [
+          "midfield_presence 16.9% between 12% and 25% -> routed via wide lanes",
+          "midfield focal in wide mid cell"
+        ]
+      },
+      "defensive": {
+        "labels": [
+          "Solid Defence / Opponent Kept Out"
+        ],
+        "reasons": [
+          "defensive_presence 6.3% < 12%",
+          "defensive_presence_raw=6.3%"
+        ]
+      },
+      "match_style": {
+        "labels": [
+          "Creative Half-Space Team"
+        ],
+        "reasons": [
+          "attacking focal in half-space -> high-quality box entries"
+        ]
+      }
+    }
+  }
+]

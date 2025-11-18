@@ -1,0 +1,49 @@
+{
+  "match_id": "1899585",
+  "features": {
+    "attacking_focal": 4,
+    "attacking_focal_value": 0.0,
+    "attacking_presence": 0.0,
+    "midfield_focal": 4,
+    "midfield_presence": 0.0,
+    "defensive_focal": 4,
+    "defensive_presence": 0.0,
+    "match_id": "1899585"
+  },
+  "result": {
+    "attacking": {
+      "labels": [
+        "Central Creativity"
+      ],
+      "reasons": [
+        "Focal cell center-middle or central focal value 0.00 > 0.25"
+      ]
+    },
+    "midfield": {
+      "labels": [
+        "No dominant midfield pattern"
+      ],
+      "reasons": [
+        "Midfield focal center-middle with midfield_presence 0.0%"
+      ]
+    },
+    "defensive": {
+      "labels": [
+        "Mid Defensive Shape",
+        "Solid Defence / Opponent Kept Out"
+      ],
+      "reasons": [
+        "Focal at central defensive cell \u2192 mid-block / controlled compact defence",
+        "Defensive presence 0.0% < 20% \u2192 opponent rarely entered defensive third"
+      ]
+    },
+    "match_style": {
+      "labels": [
+        "Positional Play / Controlled Build-Up"
+      ],
+      "reasons": [
+        "midfield central + attacking central \u2192 classic controlled buildup"
+      ]
+    }
+  }
+}
