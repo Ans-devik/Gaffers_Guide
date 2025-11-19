@@ -10,9 +10,6 @@ from pathlib import Path
 import pandas as pd
 import os
 import glob
-# ======= re-entrancy guard (add near top of file) =======
-_model1_running = False
-# =======================================================
 
 # Try importing your existing data loader if available
 try:
@@ -419,7 +416,6 @@ def run_on_matches(match_paths, output_dir="model1_output_multi"):
 
     print("All done. Outputs are in:", out_root)
 
-
 # -------------------------
 # CLI / ENTRY POINT
 # -------------------------
@@ -450,29 +446,17 @@ if __name__ == "__main__":
     # If user wants exactly 6, but fewer files exist, script will process whatever it finds.
     run_on_matches(entries)
 
-# --- Flask-friendly wrapper (safe, uses globals().get to avoid undefined-name linting/runtime issues) ---
+
+# --- Flask-friendly wrapper (auto-appended) ---
 from pathlib import Path
 from typing import Optional, Dict, Any
 import traceback
 
 def _call_entrypoint_for_model1(match_path: Optional[str] = None):
-    """
-    Safely call the most-likely entrypoint in this module:
-      - run_on_matches(list_of_paths)
-      - run(path) (if present)
-    Uses globals().get(...) so editors won't flag undefined names.
-    """
-    # prefer model_main if defined
-    model_main_fn = globals().get("model_main")
-    if callable(model_main_fn):
-        return model_main_fn(match_path)
-
-    # prefer run_on_matches if present
-    run_on_matches_fn = globals().get("run_on_matches")
+    # removed self-call to model_main to avoid recursion\n    run_on_matches_fn = globals().get("run_on_matches")
     if callable(run_on_matches_fn):
-        # build entries list
         if match_path is None:
-            repo_root = Path(__file__).resolve().parents[1]
+            repo_root = Path(__file__).parent.parent
             candidate_dir = repo_root / "matches"
             if candidate_dir.exists() and candidate_dir.is_dir():
                 entries = sorted([str(p) for p in candidate_dir.iterdir() if not p.name.startswith(".")])[:6]
@@ -490,34 +474,23 @@ def _call_entrypoint_for_model1(match_path: Optional[str] = None):
             else:
                 entries = [str(p)]
         return run_on_matches_fn(entries)
-
-    # fallback to run(...) if present
     run_fn = globals().get("run")
     if callable(run_fn):
         try:
             return run_fn(match_path) if match_path is not None else run_fn()
         except TypeError:
             return run_fn()
-
-    # nothing found
     raise RuntimeError("No entrypoint found for model1. Expected run_on_matches(...) or run(...).")
 
 def model_main(match_path: Optional[str]) -> Dict[str, Any]:
-    """
-    Wrapper expected by app.py. Runs the model entrypoint and copies PNGs to static/plots.
-    Returns: { "plots": [...], "output_folder": "..." }
-    """
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = Path(__file__).parent.parent
     static_plots = repo_root / "static" / "plots"
     static_plots.mkdir(parents=True, exist_ok=True)
-
     try:
         ret = _call_entrypoint_for_model1(match_path)
     except Exception:
         traceback.print_exc()
         raise
-
-    # collect candidate output folders to copy images from
     out_candidates = []
     if "OUTPUT" in globals():
         try:
@@ -530,7 +503,6 @@ def model_main(match_path: Optional[str]) -> Dict[str, Any]:
         repo_root / "model1_output_team",
         repo_root / "matches"
     ])
-
     found_plots = []
     used_output = None
     for cand in out_candidates:
@@ -548,25 +520,10 @@ def model_main(match_path: Optional[str]) -> Dict[str, Any]:
                         continue
         except Exception:
             continue
-
-    # include any plots returned by the model itself
     if isinstance(ret, dict):
         if "plots" in ret and isinstance(ret["plots"], list):
             for p in ret["plots"]:
                 if p not in found_plots:
                     found_plots.append(p)
-
     return {"plots": found_plots, "output_folder": used_output or str(out_candidates[0] if out_candidates else repo_root)}
-def model_main(match_path, *args, **kwargs):
-    global _model1_running
-    if _model1_running:
-        # Prevent infinite re-entry — raise an informative exception
-        raise RuntimeError("model_main re-entered (recursive call detected). Aborting.")
-    _model1_running = True
-    try:
-        # --- original body of model_main starts here ---
-        # (KEEP the existing code as-is; nothing else changes)
-        ...
-        # --- original body of model_main ends here ---
-    finally:
-        _model1_running = False
+# --- end wrapper ---

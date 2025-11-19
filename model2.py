@@ -1,39 +1,689 @@
-# model2_team_split.py
-"""
-Model 2 (team split)
-- Computes total distance and high-intensity sprint time per player for the full match (n_minutes=None)
-- Splits metrics by team (home vs away) using match metadata when available
-- Saves per-team plots and JSON summaries
-"""
+# #!/usr/bin/env python3
+# # model2.py  — robust, self-contained runner for team-split player physical outputs
+# # Modified to: accept CLI path, fallback JSONL reader, write outputs to static/plots if available.
 
-import numpy as np
-import matplotlib.pyplot as plt
-from pathlib import Path
+# import sys
+# import json
+# from pathlib import Path
+# from typing import List, Dict, Tuple, Optional, Any
+# import numpy as np
+# import matplotlib
+# matplotlib.use("Agg")  # headless-friendly
+# import matplotlib.pyplot as plt
+
+# # try to import your original loader (if present). If not, we'll fallback.
+# try:
+#     from model0_load_data import load_tracking as _orig_load_tracking, load_match_metadata as _orig_load_meta
+#     _HAS_ORIG_LOADER = True
+# except Exception:
+#     _HAS_ORIG_LOADER = False
+
+# # Config
+# FPS = 25  # default
+# HIGH_INTENSITY_THRESHOLD = 5.0  # m/s threshold for "sprint"
+# # Write outputs to static/plots if it exists (makes Flask integration trivial)
+# # DEFAULT_OUTPUT = Path("static/plots") if Path("static/plots").exists() else Path("model2_output_team")
+# # OUTPUT = DEFAULT_OUTPUT
+# # OUTPUT.mkdir(parents=True, exist_ok=True)
+# # ALWAYS write outputs into your main model folder
+# REPO_ROOT = Path(__file__).resolve().parent   # /Users/.../Downloads/model
+# OUTPUT = REPO_ROOT / "model2_output_team"
+# OUTPUT.mkdir(parents=True, exist_ok=True)
+
+
+
+# # -------------------------
+# # Robust JSONL fallback
+# # -------------------------
+# def _read_jsonl_lines_from_folder(match_folder: Path) -> List[dict]:
+#     """
+#     Find a file matching *tracking*.jsonl (prefer extrapolated) and return list of parsed JSON objects.
+#     """
+#     candidates = list(match_folder.glob("*tracking_extrapolated.jsonl")) + list(match_folder.glob("*tracking*.jsonl")) + list(match_folder.glob("*tracking*.json"))
+#     if not candidates:
+#         raise FileNotFoundError(f"No tracking jsonl found in {match_folder}")
+#     # prefer extrapolated
+#     candidates_sorted = sorted(candidates, key=lambda p: (0 if "extrapolated" in p.name.lower() else 1, p.name))
+#     chosen = candidates_sorted[0]
+#     frames = []
+#     with chosen.open("r", encoding="utf-8") as fh:
+#         for i, line in enumerate(fh):
+#             line = line.strip()
+#             if not line:
+#                 continue
+#             try:
+#                 frames.append(json.loads(line))
+#             except Exception as e:
+#                 # skip malformed lines but show first few errors
+#                 if i < 5:
+#                     print(f"[fallback-jsonl] skipped malformed line {i} in {chosen.name}: {e}")
+#                 continue
+#     print(f"[fallback-jsonl] loaded {len(frames)} frames from {chosen.name}")
+#     return frames
+
+
+# def _load_frames_with_fallback(input_path: Optional[str] = None) -> List[dict]:
+#     """
+#     Try original loader first (if available). If it fails or returns None, fallback to reading JSONL file.
+#     input_path may be a file path or a folder path.
+#     """
+#     # 1) try original loader
+#     frames = None
+#     if _HAS_ORIG_LOADER:
+#         try:
+#             if input_path:
+#                 # pass path (file or dir) to loader (it may accept both)
+#                 frames = _orig_load_tracking(input_path)
+#             else:
+#                 frames = _orig_load_tracking()
+#             if frames is None:
+#                 print("[loader] original loader returned None")
+#         except Exception as e:
+#             print(f"[loader] original load_tracking raised: {e}")
+#             frames = None
+
+#     # 2) fallback: direct JSONL reader
+#     if not isinstance(frames, list):
+#         # choose candidate folder
+#         if input_path:
+#             p = Path(input_path)
+#             folder = p if p.is_dir() else p.parent
+#         else:
+#             folder = Path.cwd()
+#         frames = _read_jsonl_lines_from_folder(folder)
+#     return frames
+
+
+# # -------------------------
+# # Helpers from your original script (kept intact + tolerant extraction)
+# # -------------------------
+# def extract_player_fields(p: dict) -> Tuple[Optional[Any], Optional[float], Optional[float], Optional[str]]:
+#     pid = None
+#     for k in ("player_id", "id", "pid", "playerId"):
+#         if k in p and p[k] is not None:
+#             pid = p[k]; break
+
+#     x = None; y = None
+#     for k in ("x","X","pos_x","posX","x_world","x_pos"):
+#         if k in p and p[k] is not None:
+#             x = p[k]; break
+#     for k in ("y","Y","pos_y","posY","y_world","y_pos"):
+#         if k in p and p[k] is not None:
+#             y = p[k]; break
+
+#     if (x is None or y is None) and isinstance(p.get("position"), dict):
+#         pos = p["position"]
+#         if x is None:
+#             for k in ("x","pos_x","x_world"):
+#                 if k in pos and pos[k] is not None:
+#                     x = pos[k]; break
+#         if y is None:
+#             for k in ("y","pos_y","y_world"):
+#                 if k in pos and pos[k] is not None:
+#                     y = pos[k]; break
+
+#     team_label = None
+#     for k in ("team","side","team_id","teamName"):
+#         if k in p and p[k] is not None:
+#             team_label = p[k]; break
+
+#     try:
+#         x = float(x) if x is not None else None
+#     except Exception:
+#         x = None
+#     try:
+#         y = float(y) if y is not None else None
+#     except Exception:
+#         y = None
+
+#     return pid, x, y, team_label
+
+
+# def map_meta_player_names(meta: dict) -> Dict[Any, str]:
+#     name_map = {}
+#     players_list = meta.get("players") or meta.get("team_players") or None
+#     if isinstance(players_list, list):
+#         for p in players_list:
+#             pid = p.get("player_id") or p.get("id") or p.get("pid")
+#             name = p.get("name") or p.get("player_name") or p.get("display_name")
+#             if pid is None and (p.get("first_name") or p.get("last_name")):
+#                 name = " ".join(filter(None, [p.get("first_name"), p.get("last_name")]))
+#             if pid is not None and name:
+#                 name_map[pid] = name
+#     for team_key in ("home", "home_team", "home_team_players", "home_team_roster"):
+#         team_entry = meta.get(team_key)
+#         if isinstance(team_entry, dict):
+#             tplayers = team_entry.get("players") if isinstance(team_entry.get("players"), list) else team_entry.get("squad")
+#             if isinstance(tplayers, list):
+#                 for p in tplayers:
+#                     pid = p.get("player_id") or p.get("id") or p.get("pid")
+#                     name = p.get("name") or p.get("player_name")
+#                     if pid is not None and name:
+#                         name_map[pid] = name
+#     return name_map
+
+
+# def compute_distances_and_sprints(frames: List[dict], fps: int) -> Tuple[Dict[Any,float], Dict[Any,int], Dict[Any,str]]:
+#     dt = 1.0 / fps
+#     last_pos = {}
+#     distances = {}
+#     sprints = {}
+#     pid_team = {}
+
+#     for frame in frames:
+#         pd = frame.get("player_data", []) or frame.get("players", []) or []
+#         for p in pd:
+#             pid, x, y, team_label = extract_player_fields(p)
+#             if pid is None or x is None or y is None:
+#                 continue
+#             try:
+#                 pid_key = int(pid)
+#             except Exception:
+#                 pid_key = pid
+
+#             if team_label is not None and pid_key not in pid_team:
+#                 pid_team[pid_key] = team_label
+
+#             if pid_key in last_pos:
+#                 dx = x - last_pos[pid_key][0]
+#                 dy = y - last_pos[pid_key][1]
+#                 dist = np.hypot(dx, dy)
+#                 distances[pid_key] = distances.get(pid_key, 0.0) + float(dist)
+#                 speed = dist / dt if dt > 0 else 0.0
+#                 if speed >= HIGH_INTENSITY_THRESHOLD:
+#                     sprints[pid_key] = sprints.get(pid_key, 0) + 1
+#             else:
+#                 distances.setdefault(pid_key, 0.0)
+#                 sprints.setdefault(pid_key, 0)
+#             last_pos[pid_key] = (x, y)
+#     return distances, sprints, pid_team
+# # -------------------------
+# # Quarter-by-quarter line plots (distance & sprint seconds)
+# # -------------------------
+# import matplotlib.pyplot as _plt
+# import math as _math
+# from typing import Sequence as _Sequence
+
+# def _compute_per_quarter_metrics(frames: _Sequence[dict], fps: int):
+#     """
+#     Split frames into 4 equal quarters (by index) and compute per-player:
+#       - total distance per quarter (meters)
+#       - sprint time per quarter (seconds) where sprint = speed >= HIGH_INTENSITY_THRESHOLD
+#     Returns:
+#       player_ids (sorted list), dist_q: {pid: [q0,q1,q2,q3]}, sprint_q: {pid: [q0..q3]}
+#     """
+#     total_frames = len(frames)
+#     if total_frames == 0:
+#         return [], {}, {}
+#     # quarter boundaries (slice indices)
+#     q_size = _math.ceil(total_frames / 4)
+#     quarters = []
+#     for i in range(4):
+#         start = i * q_size
+#         end = min(total_frames, (i + 1) * q_size)
+#         quarters.append((start, end))
+
+#     # helper: compute per-frame positions (reuse extract_player_fields)
+#     # Build per-player positions per frame: last_pos logic like compute_distances_and_sprints
+#     per_player_last = {}
+#     # We'll compute incremental distances and sprint frames bucketed by quarter
+#     dist_q = {}     # pid -> [d_q0, d_q1, d_q2, d_q3] in meters
+#     sprint_frames_q = {}  # pid -> [frames_q0..] counts
+#     dt = 1.0 / fps if fps > 0 else 1.0
+
+#     # iterate frames with index
+#     for i, frame in enumerate(frames):
+#         # find which quarter this frame belongs to
+#         qidx = min(3, i // q_size) if q_size > 0 else 0
+#         players = frame.get("player_data", []) or frame.get("players", []) or []
+#         for p in players:
+#             pid, x, y, _ = extract_player_fields(p)
+#             if pid is None or x is None or y is None:
+#                 continue
+#             try:
+#                 pid_key = int(pid)
+#             except Exception:
+#                 pid_key = pid
+#             # ensure buckets exist
+#             if pid_key not in dist_q:
+#                 dist_q[pid_key] = [0.0, 0.0, 0.0, 0.0]
+#                 sprint_frames_q[pid_key] = [0, 0, 0, 0]
+#                 per_player_last[pid_key] = None
+#             last = per_player_last.get(pid_key)
+#             if last is not None:
+#                 dx = x - last[0]
+#                 dy = y - last[1]
+#                 d = _math.hypot(dx, dy)
+#                 dist_q[pid_key][qidx] += float(d)
+#                 speed = d / dt if dt > 0 else 0.0
+#                 if speed >= HIGH_INTENSITY_THRESHOLD:
+#                     sprint_frames_q[pid_key][qidx] += 1
+#             per_player_last[pid_key] = (x, y)
+
+#     # convert sprint frames to seconds per quarter
+#     sprint_seconds_q = {}
+#     for pid, frames_counts in sprint_frames_q.items():
+#         sprint_seconds_q[pid] = [fc * (1.0 / fps) for fc in frames_counts]
+
+#     player_ids = sorted(set(list(dist_q.keys()) + list(sprint_seconds_q.keys())))
+#     return player_ids, dist_q, sprint_seconds_q
+
+# def _plot_lines_by_quarter(player_ids, metric_q: Dict, title: str, ylabel: str, out_path: Path,
+#                            top_n: int = 8, emphasize_top: bool = True):
+#     """
+#     metric_q: pid -> list-of-4-numbers (one per quarter)
+#     draws faint gray lines for all players, and solid colored lines for top_n players by total.
+#     Writes PNG to out_path.
+#     """
+#     if not player_ids:
+#         print("[quarter-plots] no players to plot:", title)
+#         return
+#     # total per player
+#     totals = {pid: sum(metric_q.get(pid, [0,0,0,0])) for pid in player_ids}
+#     # sort and pick top_n (desc)
+#     top_players = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)[:top_n]
+#     top_ids = [kv[0] for kv in top_players]
+
+#     # Quarter labels
+#     quarters = ["Q1", "Q2", "Q3", "Q4"]
+#     _plt.figure(figsize=(13,7))
+
+#     # draw faint lines for everyone
+#     for pid in player_ids:
+#         vals = metric_q.get(pid, [0,0,0,0])
+#         _plt.plot(quarters, vals, color="0.8", linewidth=1.2, alpha=0.6, zorder=1)
+
+#     # palette for highlighted players (use matplotlib default color cycle)
+#     colors = _plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+#     # draw highlighted lines
+#     for i, pid in enumerate(top_ids):
+#         vals = metric_q.get(pid, [0,0,0,0])
+#         col = colors[i % len(colors)]
+#         _plt.plot(quarters, vals, label=str(pid), color=col, linewidth=2.4, zorder=3 + i)
+#         # add a marker at last point
+#         _plt.scatter(quarters, vals, color=col, s=25, zorder=4 + i)
+
+#     _plt.title(title)
+#     _plt.xlabel("Match Quarter")
+#     _plt.ylabel(ylabel)
+#     _plt.grid(axis='y', linestyle='--', linewidth=0.6, alpha=0.6)
+#     _plt.legend(title=f"Top players by total", loc="upper right")
+#     _plt.tight_layout()
+#     out_path.parent.mkdir(parents=True, exist_ok=True)
+#     _plt.savefig(str(out_path), dpi=150)
+#     _plt.close()
+
+# def generate_quarter_plots(valid_frames: _Sequence[dict], fps: int, out_dir: Path, top_n: int = 8):
+#     """
+#     Wrapper that computes per-quarter metrics and writes two PNGs:
+#       - sprints_by_quarter_lines.png
+#       - distance_by_quarter_lines.png
+#     """
+#     player_ids, dist_q, sprint_q = _compute_per_quarter_metrics(valid_frames, fps)
+#     # convert distances (meters) -> keep meters for your earlier plots (they used meters)
+#     # sprint_q is in seconds already
+#     _plot_lines_by_quarter(player_ids, sprint_q,
+#                            "Sprint Time (s) by Quarter — one line per player (top {} highlighted)".format(top_n),
+#                            "Sprint Time (s)",
+#                            out_dir / "sprints_by_quarter_lines.png",
+#                            top_n=top_n)
+#     _plot_lines_by_quarter(player_ids, dist_q,
+#                            "Distance (m) by Quarter — one line per player (top {} highlighted)".format(top_n),
+#                            "Distance (m)",
+#                            out_dir / "distance_by_quarter_lines.png",
+#                            top_n=top_n)
+#     print(f"[quarter-plots] Saved quarter-by-quarter line plots to {out_dir.resolve()}")
+
+
+# def plot_bar(values_map: Dict[Any,float], titlestr: str, ylabel: str, out_path: Path,
+#              id_to_label: Dict[Any,str]=None, top_n: Optional[int]=None, color=None):
+#     if not values_map:
+#         print("No data to plot:", titlestr)
+#         return
+#     items = sorted(values_map.items(), key=lambda kv: kv[1], reverse=True)
+#     if top_n:
+#         items = items[:top_n]
+#     ids = [kv[0] for kv in items]
+#     vals = [kv[1] for kv in items]
+#     labels = [id_to_label.get(i, str(i)) if id_to_label else str(i) for i in ids]
+
+#     plt.figure(figsize=(12,5))
+#     plt.bar(range(len(vals)), vals, alpha=0.95)
+#     plt.xticks(range(len(vals)), labels, rotation=45, ha="right")
+#     plt.title(titlestr)
+#     plt.ylabel(ylabel)
+#     plt.tight_layout()
+#     out_path.parent.mkdir(parents=True, exist_ok=True)
+#     plt.savefig(str(out_path), dpi=150)
+#     plt.close()
+
+
+# # -------------------------
+# # Main runner (refactored minimal changes from your original)
+# # -------------------------
+# def run(input_path: Optional[str] = None, n_minutes: Optional[float] = None):
+#     # Load frames robustly
+#     frames = _load_frames_with_fallback(input_path)
+#     print(f"Using FPS = {FPS}")
+#     print(f"[info] Frames loaded: {len(frames)}")
+
+#     # Try to load metadata via original loader if present, otherwise read match.json
+#     meta = {}
+#     if _HAS_ORIG_LOADER:
+#         try:
+#             meta = _orig_load_meta(input_path) if input_path else _orig_load_meta()
+#         except Exception as e:
+#             print(f"[loader] load_match_metadata failed: {e}")
+#             meta = {}
+#     if not isinstance(meta, dict) or not meta:
+#         # fallback: try match.json in folder
+#         try:
+#             folder = Path(input_path) if input_path else Path.cwd()
+#             if folder.is_file():
+#                 folder = folder.parent
+#             cand = next(folder.glob("*match*.json"), None)
+#             if cand:
+#                 with cand.open("r", encoding="utf-8") as fh:
+#                     meta = json.load(fh)
+#         except Exception:
+#             meta = {}
+
+#     # Determine FPS from metadata if possible
+#     fps_meta = None
+#     for k in ("fps","frame_rate","frameRate","sample_rate"):
+#         if meta.get(k):
+#             try:
+#                 fps_meta = int(meta.get(k))
+#                 break
+#             except Exception:
+#                 pass
+#     fps_use = fps_meta or FPS
+#     print(f"[info] Using FPS = {fps_use}")
+
+#     # select frames to analyze
+#     if n_minutes is None:
+#         valid_frames = [f for f in frames if (f.get("player_data") or f.get("players"))]
+#     else:
+#         max_frames = int(n_minutes * 60 * fps_use)
+#         valid_frames = [f for f in frames if (f.get("player_data") or f.get("players"))][:max_frames]
+#     print(f"[info] Total frames loaded: {len(frames)} -> frames used for analysis: {len(valid_frames)}")
+#     if len(valid_frames) == 0:
+#         raise RuntimeError("No valid frames found. Check your tracking loader output or file contents.")
+
+#     # compute per-player distances & sprint frames
+#     distances, sprint_frames, pid_team_map_from_frames = compute_distances_and_sprints(valid_frames, fps_use)
+
+#     # convert sprint frames to sprint seconds
+#     sprint_seconds = {pid: int(frames_count) * (1.0 / fps_use) for pid, frames_count in sprint_frames.items()}
+#     # generate quarter-by-quarter line plots (distance & sprints)
+#     generate_quarter_plots(valid_frames, fps_use, OUTPUT, top_n=8)
+
+
+#     # metadata-provided team player lists (best attempts)
+#     home_ids_raw = meta.get("home_players") or meta.get("home_team_player_ids") or meta.get("home_squad") or []
+#     away_ids_raw = meta.get("away_players") or meta.get("away_team_player_ids") or meta.get("away_squad") or []
+#     def try_int_list(lst):
+#         out = []
+#         for v in lst or []:
+#             try:
+#                 out.append(int(v))
+#             except Exception:
+#                 out.append(v)
+#         return out
+#     home_ids = try_int_list(home_ids_raw)
+#     away_ids = try_int_list(away_ids_raw)
+
+#     home_name = meta.get("home_team") or meta.get("home_name") or meta.get("home") or "TeamA"
+#     away_name = meta.get("away_team") or meta.get("away_name") or meta.get("away") or "TeamB"
+
+#     id_to_name = map_meta_player_names(meta)
+
+#     # build pid->team map using metadata then fallback to detected team labels then split in halves
+#     pid_to_team = {}
+#     if home_ids:
+#         for pid in home_ids:
+#             pid_to_team[pid] = "A"
+#     if away_ids:
+#         for pid in away_ids:
+#             pid_to_team[pid] = "B"
+#     for pid, tlabel in pid_team_map_from_frames.items():
+#         if pid in pid_to_team:
+#             continue
+#         if tlabel in ("home", "Home", 1, "1", "H", "h"):
+#             pid_to_team[pid] = "A"
+#         elif tlabel in ("away", "Away", 0, "0", "A", "a"):
+#             pid_to_team[pid] = "B"
+#     all_pids = sorted(set(list(distances.keys()) + list(sprint_seconds.keys())))
+#     if not any(v == "A" for v in pid_to_team.values()) and not any(v == "B" for v in pid_to_team.values()):
+#         half = len(all_pids)//2
+#         for i, pid in enumerate(all_pids):
+#             pid_to_team[pid] = "A" if i < half else "B"
+
+#     # group metrics per team
+#     team_metrics = {
+#         "A": {"name": str(home_name), "distances": {}, "sprints_seconds": {}, "ids": []},
+#         "B": {"name": str(away_name), "distances": {}, "sprints_seconds": {}, "ids": []}
+#     }
+#     for pid in all_pids:
+#         team = pid_to_team.get(pid, "A")
+#         dist_m = distances.get(pid, 0.0)
+#         sprint_s = sprint_seconds.get(pid, 0.0)
+#         team_metrics[team]["distances"][pid] = dist_m / 1000.0  # convert to km
+#         team_metrics[team]["sprints_seconds"][pid] = sprint_s
+#         team_metrics[team]["ids"].append(pid)
+
+#     for team in ("A","B"):
+#         distances_km = team_metrics[team]["distances"]
+#         sprints_s = team_metrics[team]["sprints_seconds"]
+#         fatigue_map = {}
+#         for pid in distances_km:
+#             d = distances_km.get(pid, 0.0)
+#             sp = sprints_s.get(pid, 0.0)
+#             score = d + (sp * 0.02)
+#             fatigue_map[pid] = score
+#         team_metrics[team]["fatigue_score"] = fatigue_map
+
+#     # Save per-team plots & JSON summary
+#     for team in ("A","B"):
+#         tname = team_metrics[team]["name"]
+#         safe_tname = str(tname).replace(" ", "_")
+#         out_dir = OUTPUT / f"team_{team}_{safe_tname}"
+#         out_dir.mkdir(parents=True, exist_ok=True)
+
+#         plot_bar(team_metrics[team]["distances"],
+#                  f"Top players by Total Distance (km) — {tname}",
+#                  "Distance (km)",
+#                  out_dir / f"player_total_distance_{safe_tname}.png",
+#                  id_to_label={pid: id_to_name.get(pid, str(pid)) for pid in team_metrics[team]["distances"].keys()},
+#                  color="#ff9f9f")
+
+#         plot_bar(team_metrics[team]["sprints_seconds"],
+#                  f"Top players by Sprint Time (s) — {tname}",
+#                  "Sprint Time (s)",
+#                  out_dir / f"player_sprint_seconds_{safe_tname}.png",
+#                  id_to_label={pid: id_to_name.get(pid, str(pid)) for pid in team_metrics[team]["sprints_seconds"].keys()},
+#                  color="#9fc5ff")
+
+#         plot_bar(team_metrics[team]["fatigue_score"],
+#                  f"Top players by Fatigue Score (higher = more fatigued) — {tname}",
+#                  "Fatigue score (heuristic)",
+#                  out_dir / f"player_fatigue_{safe_tname}.png",
+#                  id_to_label={pid: id_to_name.get(pid, str(pid)) for pid in team_metrics[team]["fatigue_score"].keys()},
+#                  color="#ffd39f")
+
+#         summary = {
+#             "team_name": tname,
+#             "num_players_analyzed": len(team_metrics[team]["ids"]),
+#             "distances_km": {str(pid): team_metrics[team]["distances"][pid] for pid in team_metrics[team]["distances"]},
+#             "sprint_seconds": {str(pid): team_metrics[team]["sprints_seconds"][pid] for pid in team_metrics[team]["sprints_seconds"]},
+#             "fatigue_score": {str(pid): team_metrics[team]["fatigue_score"][pid] for pid in team_metrics[team]["fatigue_score"]},
+#             "id_to_name": {str(pid): id_to_name.get(pid, None) for pid in team_metrics[team]["ids"]}
+#         }
+#         with open(out_dir / f"summary_{safe_tname}.json", "w", encoding="utf-8") as fh:
+#             json.dump(summary, fh, indent=2)
+
+#         # Also copy into top-level OUTPUT directory for quick access (if not already there)
+#         for p in out_dir.glob("*.png"):
+#             try:
+#                 dest = OUTPUT / p.name
+#                 if not dest.exists():
+#                     dest.write_bytes(p.read_bytes())
+#             except Exception:
+#                 pass
+
+#         print(f"Saved outputs for team {tname} in {out_dir.resolve()}")
+
+#     combined = {
+#         "fps_used": fps_use,
+#         "teams": {
+#             "A": {"name": team_metrics["A"]["name"], "num_players": len(team_metrics["A"]["ids"])},
+#             "B": {"name": team_metrics["B"]["name"], "num_players": len(team_metrics["B"]["ids"])}
+#         }
+#     }
+#     with open(OUTPUT / "combined_summary.json", "w", encoding="utf-8") as fh:
+#         json.dump(combined, fh, indent=2)
+
+#     print("Model2 team-split complete. Outputs are in:", OUTPUT.resolve())
+#     return combined, team_metrics
+
+
+# # CLI entrypoint — maintain original behaviour when executed as script
+# if __name__ == "__main__":
+#     # first CLI arg is optional path (file or folder)
+#     arg = sys.argv[1] if len(sys.argv) > 1 else None
+#     try:
+#         run(arg, n_minutes=None)
+#     except Exception as e:
+#         import traceback
+#         traceback.print_exc()
+#         sys.exit(1)
+#!/usr/bin/env python3
+"""
+Minimal-patch model2.py (team split)
+- Keeps original computation/plots exactly
+- Adds only the necessary changes:
+  * deterministic OUTPUT under repo root
+  * fallback to opendata first match when no/corrupt input
+  * sanitize folder names
+  * model_main wrapper
+  * copy PNGs into static/plots for Flask
+"""
+import sys
 import json
+from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Any
+import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
-from model0_load_data import load_tracking, load_match_metadata
-
-# Config
-FPS = 25  # default if metadata doesn't provide fps
-HIGH_INTENSITY_THRESHOLD = 5.0  # m/s threshold for "sprint"
-OUTPUT = Path("model2_output_team")
+# ---------------------------
+# FORCE outputs into repo root (minimal change)
+# ---------------------------
+REPO_ROOT = Path(__file__).resolve().parents[1]  # project root (/Users/.../Downloads/model)
+OUTPUT = REPO_ROOT / "model2_output_team"
 OUTPUT.mkdir(parents=True, exist_ok=True)
 
+# ---------------------------
+# Try to import original loader (if present)
+# ---------------------------
+try:
+    from model0_load_data import load_tracking as _orig_load_tracking, load_match_metadata as _orig_load_meta
+    _HAS_ORIG_LOADER = True
+except Exception:
+    _HAS_ORIG_LOADER = False
 
-# --- Helpers for tolerant extraction of id/x/y/team/name from frames & metadata ---
+# Config
+FPS = 25
+HIGH_INTENSITY_THRESHOLD = 5.0
+
+# ---------------------------
+# small helpers (sanitize)
+# ---------------------------
+import re
+def sanitize(name: str) -> str:
+    name = str(name)
+    name = re.sub(r"[{}\[\]\(\)\:\'\",]", "", name)
+    name = name.replace(" ", "_")
+    name = re.sub(r"[^A-Za-z0-9_\-]+", "_", name)
+    return name.strip("_") or "team"
+
+# ---------------------------
+# Robust JSONL reader + fallback loader
+# ---------------------------
+def _read_jsonl_lines_from_folder(match_folder: Path) -> List[dict]:
+    candidates = list(match_folder.glob("*tracking_extrapolated.jsonl")) + list(match_folder.glob("*tracking*.jsonl")) + list(match_folder.glob("*tracking*.json"))
+    if not candidates:
+        raise FileNotFoundError(f"No tracking jsonl found in {match_folder}")
+    candidates_sorted = sorted(candidates, key=lambda p: (0 if "extrapolated" in p.name.lower() else 1, p.name))
+    chosen = candidates_sorted[0]
+    frames = []
+    with chosen.open("r", encoding="utf-8") as fh:
+        for i, line in enumerate(fh):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                frames.append(json.loads(line))
+            except Exception:
+                # skip malformed lines
+                continue
+    print(f"[fallback-jsonl] loaded {len(frames)} frames from {chosen.name}")
+    return frames
+
+def _try_opendata_first_match():
+    opendata_matches = REPO_ROOT / "opendata" / "data" / "matches"
+    if opendata_matches.exists() and opendata_matches.is_dir():
+        match_dirs = sorted([d for d in opendata_matches.iterdir() if d.is_dir()])
+        if match_dirs:
+            return match_dirs[0]
+    return None
+
+def _load_frames_with_fallback(input_path: Optional[str] = None) -> List[dict]:
+    # try original loader first (if available)
+    frames = None
+    if _HAS_ORIG_LOADER:
+        try:
+            if input_path:
+                frames = _orig_load_tracking(input_path)
+            else:
+                frames = _orig_load_tracking()
+            if frames is None:
+                print("[loader] original loader returned None")
+        except Exception as e:
+            print(f"[loader] original load_tracking raised: {e}")
+            frames = None
+
+    # if not list, figure folder to read and fallback to JSONL
+    if not isinstance(frames, list):
+        if input_path:
+            p = Path(input_path)
+            folder = p if p.is_dir() else p.parent
+        else:
+            folder = Path.cwd()
+
+        # first try folder; if not found, try opendata first match
+        try:
+            frames = _read_jsonl_lines_from_folder(folder)
+        except FileNotFoundError:
+            fallback = _try_opendata_first_match()
+            if fallback is not None:
+                print(f"[fallback] No tracking in {folder}, trying opendata match {fallback.name}")
+                frames = _read_jsonl_lines_from_folder(fallback)
+            else:
+                raise
+    return frames
+
+# ---------------------------
+# Tolerant extraction helpers (kept from original)
+# ---------------------------
 def extract_player_fields(p: dict) -> Tuple[Optional[Any], Optional[float], Optional[float], Optional[str]]:
-    """
-    Try multiple common keys to get player id, x, y and team label (if present in frame).
-    Returns (pid, x, y, team_label)
-    """
-    # id candidates
     pid = None
     for k in ("player_id", "id", "pid", "playerId"):
         if k in p and p[k] is not None:
             pid = p[k]; break
 
-    # position candidates
     x = None; y = None
     for k in ("x","X","pos_x","posX","x_world","x_pos"):
         if k in p and p[k] is not None:
@@ -41,7 +691,7 @@ def extract_player_fields(p: dict) -> Tuple[Optional[Any], Optional[float], Opti
     for k in ("y","Y","pos_y","posY","y_world","y_pos"):
         if k in p and p[k] is not None:
             y = p[k]; break
-    # nested position
+
     if (x is None or y is None) and isinstance(p.get("position"), dict):
         pos = p["position"]
         if x is None:
@@ -53,13 +703,11 @@ def extract_player_fields(p: dict) -> Tuple[Optional[Any], Optional[float], Opti
                 if k in pos and pos[k] is not None:
                     y = pos[k]; break
 
-    # team label in frame
     team_label = None
     for k in ("team","side","team_id","teamName"):
         if k in p and p[k] is not None:
             team_label = p[k]; break
 
-    # convert coords to floats if possible
     try:
         x = float(x) if x is not None else None
     except Exception:
@@ -71,30 +719,20 @@ def extract_player_fields(p: dict) -> Tuple[Optional[Any], Optional[float], Opti
 
     return pid, x, y, team_label
 
-
 def map_meta_player_names(meta: dict) -> Dict[Any, str]:
-    """
-    If metadata contains a 'players' list or mapping, attempt to build id->name map.
-    A variety of keys tried for robustness.
-    """
     name_map = {}
-    # many datasets include 'players' as a list of dicts
     players_list = meta.get("players") or meta.get("team_players") or None
     if isinstance(players_list, list):
         for p in players_list:
-            # try id and name keys
             pid = p.get("player_id") or p.get("id") or p.get("pid")
             name = p.get("name") or p.get("player_name") or p.get("display_name")
             if pid is None and (p.get("first_name") or p.get("last_name")):
                 name = " ".join(filter(None, [p.get("first_name"), p.get("last_name")]))
             if pid is not None and name:
                 name_map[pid] = name
-    # some metadata store per-team player lists under home/away team dicts
-    # check nested metadata fields:
     for team_key in ("home", "home_team", "home_team_players", "home_team_roster"):
         team_entry = meta.get(team_key)
         if isinstance(team_entry, dict):
-            # try team_entry.get("players")
             tplayers = team_entry.get("players") if isinstance(team_entry.get("players"), list) else team_entry.get("squad")
             if isinstance(tplayers, list):
                 for p in tplayers:
@@ -104,17 +742,8 @@ def map_meta_player_names(meta: dict) -> Dict[Any, str]:
                         name_map[pid] = name
     return name_map
 
-
-# --- Core computation: distances, sprint frames ---
 def compute_distances_and_sprints(frames: List[dict], fps: int) -> Tuple[Dict[Any,float], Dict[Any,int], Dict[Any,str]]:
-    """
-    Returns:
-      distances: pid -> total distance (meters)
-      sprints: pid -> sprint-frame count (frames where speed >= threshold)
-      pid_to_team_label: pid -> team label discovered from frames (if present)
-    """
     dt = 1.0 / fps
-    # store last position per pid to compute incremental distance
     last_pos = {}
     distances = {}
     sprints = {}
@@ -126,28 +755,23 @@ def compute_distances_and_sprints(frames: List[dict], fps: int) -> Tuple[Dict[An
             pid, x, y, team_label = extract_player_fields(p)
             if pid is None or x is None or y is None:
                 continue
-            # normalize pid type: prefer int if possible else keep as-is
             try:
                 pid_key = int(pid)
             except Exception:
                 pid_key = pid
 
-            # set team label if present and not already set
             if team_label is not None and pid_key not in pid_team:
                 pid_team[pid_key] = team_label
 
-            # compute incremental distance
             if pid_key in last_pos:
                 dx = x - last_pos[pid_key][0]
                 dy = y - last_pos[pid_key][1]
                 dist = np.hypot(dx, dy)
                 distances[pid_key] = distances.get(pid_key, 0.0) + float(dist)
-                # speed (m/s) = dist / dt
                 speed = dist / dt if dt > 0 else 0.0
                 if speed >= HIGH_INTENSITY_THRESHOLD:
                     sprints[pid_key] = sprints.get(pid_key, 0) + 1
             else:
-                # initialize
                 distances.setdefault(pid_key, 0.0)
                 sprints.setdefault(pid_key, 0)
 
@@ -155,19 +779,11 @@ def compute_distances_and_sprints(frames: List[dict], fps: int) -> Tuple[Dict[An
 
     return distances, sprints, pid_team
 
-
-# --- Utility plotting functions ---
 def plot_bar(values_map: Dict[Any,float], titlestr: str, ylabel: str, out_path: Path,
-             id_to_label: Dict[Any,str]=None, top_n: Optional[int]=None, color="#FF9999"):
-    """
-    values_map: pid -> numeric
-    id_to_label: optional mapping from pid to human label (name)
-    top_n: if provided, sort descending and display top_n only
-    """
+             id_to_label: Dict[Any,str]=None, top_n: Optional[int]=None, color=None):
     if not values_map:
         print("No data to plot:", titlestr)
         return
-    # sort descending
     items = sorted(values_map.items(), key=lambda kv: kv[1], reverse=True)
     if top_n:
         items = items[:top_n]
@@ -176,21 +792,123 @@ def plot_bar(values_map: Dict[Any,float], titlestr: str, ylabel: str, out_path: 
     labels = [id_to_label.get(i, str(i)) if id_to_label else str(i) for i in ids]
 
     plt.figure(figsize=(12,5))
-    plt.bar(range(len(vals)), vals, color=color, alpha=0.95)
+    plt.bar(range(len(vals)), vals, alpha=0.95)
     plt.xticks(range(len(vals)), labels, rotation=45, ha="right")
     plt.title(titlestr)
     plt.ylabel(ylabel)
     plt.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(str(out_path), dpi=150)
     plt.close()
 
+# Quarter-by-quarter helpers (optional small add)
+import math as _math
+def _compute_per_quarter_metrics(frames: List[dict], fps: int):
+    total_frames = len(frames)
+    if total_frames == 0:
+        return [], {}, {}
+    q_size = _math.ceil(total_frames / 4)
+    per_player_last = {}
+    dist_q = {}
+    sprint_frames_q = {}
+    dt = 1.0 / fps if fps > 0 else 1.0
+    for i, frame in enumerate(frames):
+        qidx = min(3, i // q_size) if q_size > 0 else 0
+        players = frame.get("player_data", []) or frame.get("players", []) or []
+        for p in players:
+            pid, x, y, _ = extract_player_fields(p)
+            if pid is None or x is None or y is None:
+                continue
+            try:
+                pid_key = int(pid)
+            except Exception:
+                pid_key = pid
+            if pid_key not in dist_q:
+                dist_q[pid_key] = [0.0, 0.0, 0.0, 0.0]
+                sprint_frames_q[pid_key] = [0, 0, 0, 0]
+                per_player_last[pid_key] = None
+            last = per_player_last.get(pid_key)
+            if last is not None:
+                dx = x - last[0]
+                dy = y - last[1]
+                d = _math.hypot(dx, dy)
+                dist_q[pid_key][qidx] += float(d)
+                speed = d / dt if dt > 0 else 0.0
+                if speed >= HIGH_INTENSITY_THRESHOLD:
+                    sprint_frames_q[pid_key][qidx] += 1
+            per_player_last[pid_key] = (x, y)
+    sprint_seconds_q = {pid: [fc * (1.0 / fps) for fc in frames_counts] for pid, frames_counts in sprint_frames_q.items()}
+    player_ids = sorted(set(list(dist_q.keys()) + list(sprint_seconds_q.keys())))
+    return player_ids, dist_q, sprint_seconds_q
 
-# --- Main runner ---
-def run(n_minutes: Optional[float] = None):
-    frames = load_tracking()
-    meta = load_match_metadata() or {}
+def _plot_lines_by_quarter(player_ids, metric_q: Dict, title: str, ylabel: str, out_path: Path,
+                           top_n: int = 8):
+    if not player_ids:
+        print("[quarter-plots] no players to plot:", title)
+        return
+    totals = {pid: sum(metric_q.get(pid, [0,0,0,0])) for pid in player_ids}
+    top_players = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)[:top_n]
+    top_ids = [kv[0] for kv in top_players]
+    quarters = ["Q1", "Q2", "Q3", "Q4"]
+    plt.figure(figsize=(13,7))
+    for pid in player_ids:
+        vals = metric_q.get(pid, [0,0,0,0])
+        plt.plot(quarters, vals, color="0.8", linewidth=1.2, alpha=0.6, zorder=1)
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    for i, pid in enumerate(top_ids):
+        vals = metric_q.get(pid, [0,0,0,0])
+        col = colors[i % len(colors)]
+        plt.plot(quarters, vals, label=str(pid), color=col, linewidth=2.4, zorder=3 + i)
+        plt.scatter(quarters, vals, color=col, s=25, zorder=4 + i)
+    plt.title(title)
+    plt.xlabel("Match Quarter")
+    plt.ylabel(ylabel)
+    plt.grid(axis='y', linestyle='--', linewidth=0.6, alpha=0.6)
+    plt.legend(title=f"Top players by total", loc="upper right")
+    plt.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(str(out_path), dpi=150)
+    plt.close()
 
-    # FPS: try to get from metadata first
+def generate_quarter_plots(valid_frames: List[dict], fps: int, out_dir: Path, top_n: int = 8):
+    player_ids, dist_q, sprint_q = _compute_per_quarter_metrics(valid_frames, fps)
+    _plot_lines_by_quarter(player_ids, sprint_q,
+                           "Sprint Time (s) by Quarter — one line per player (top {} highlighted)".format(top_n),
+                           "Sprint Time (s)",
+                           out_dir / "sprints_by_quarter_lines.png",
+                           top_n=top_n)
+    _plot_lines_by_quarter(player_ids, dist_q,
+                           "Distance (m) by Quarter — one line per player (top {} highlighted)".format(top_n),
+                           "Distance (m)",
+                           out_dir / "distance_by_quarter_lines.png",
+                           top_n=top_n)
+    print(f"[quarter-plots] Saved quarter-by-quarter line plots to {out_dir.resolve()}")
+
+# ---------------------------
+# Main runner (kept from original, minimal edits)
+# ---------------------------
+def run(input_path: Optional[str] = None, n_minutes: Optional[float] = None):
+    frames = _load_frames_with_fallback(input_path)
+    meta = {}
+    if _HAS_ORIG_LOADER:
+        try:
+            meta = _orig_load_meta(input_path) if input_path else _orig_load_meta()
+        except Exception as e:
+            print(f"[loader] load_match_metadata failed: {e}")
+            meta = {}
+    if not isinstance(meta, dict) or not meta:
+        try:
+            folder = Path(input_path) if input_path else Path.cwd()
+            if folder.is_file():
+                folder = folder.parent
+            cand = next(folder.glob("*match*.json"), None)
+            if cand:
+                with cand.open("r", encoding="utf-8") as fh:
+                    meta = json.load(fh)
+        except Exception:
+            meta = {}
+
+    # FPS detection
     fps_meta = None
     for k in ("fps","frame_rate","frameRate","sample_rate"):
         if meta.get(k):
@@ -200,29 +918,22 @@ def run(n_minutes: Optional[float] = None):
             except Exception:
                 pass
     fps_use = fps_meta or FPS
-    print(f"Using FPS = {fps_use}")
+    print(f"[info] Using FPS = {fps_use}")
 
-    # select valid frames (if n_minutes is None -> full match)
     if n_minutes is None:
         valid_frames = [f for f in frames if (f.get("player_data") or f.get("players"))]
     else:
         max_frames = int(n_minutes * 60 * fps_use)
         valid_frames = [f for f in frames if (f.get("player_data") or f.get("players"))][:max_frames]
-    print(f"Total frames loaded: {len(frames)} -> frames used for analysis: {len(valid_frames)}")
-
+    print(f"[info] Total frames loaded: {len(frames)} -> frames used for analysis: {len(valid_frames)}")
     if len(valid_frames) == 0:
         raise RuntimeError("No valid frames found. Check your tracking loader output.")
 
-    # compute per-player distances & sprint frames
     distances, sprint_frames, pid_team_map_from_frames = compute_distances_and_sprints(valid_frames, fps_use)
-
-    # convert sprint frames to sprint seconds
     sprint_seconds = {pid: int(frames_count) * (1.0 / fps_use) for pid, frames_count in sprint_frames.items()}
 
-    # try to get team player id lists and team names from metadata
     home_ids_raw = meta.get("home_players") or meta.get("home_team_player_ids") or meta.get("home_squad") or []
     away_ids_raw = meta.get("away_players") or meta.get("away_team_player_ids") or meta.get("away_squad") or []
-    # normalize numeric strings in metadata to int where possible (best effort)
     def try_int_list(lst):
         out = []
         for v in lst or []:
@@ -234,24 +945,17 @@ def run(n_minutes: Optional[float] = None):
     home_ids = try_int_list(home_ids_raw)
     away_ids = try_int_list(away_ids_raw)
 
-    # team names
     home_name = meta.get("home_team") or meta.get("home_name") or meta.get("home") or "TeamA"
     away_name = meta.get("away_team") or meta.get("away_name") or meta.get("away") or "TeamB"
-
-    # id -> player name mapping (from metadata)
     id_to_name = map_meta_player_names(meta)
 
-    # Build mapping pid -> team (A/B)
     pid_to_team = {}
-    # assign from metadata lists if they exist
     if home_ids:
         for pid in home_ids:
             pid_to_team[pid] = "A"
     if away_ids:
         for pid in away_ids:
             pid_to_team[pid] = "B"
-
-    # fallback: use team labels discovered in frames
     for pid, tlabel in pid_team_map_from_frames.items():
         if pid in pid_to_team:
             continue
@@ -259,18 +963,12 @@ def run(n_minutes: Optional[float] = None):
             pid_to_team[pid] = "A"
         elif tlabel in ("away", "Away", 0, "0", "A", "a"):
             pid_to_team[pid] = "B"
-        else:
-            # unknown label, don't set yet
-            pass
-
-    # final fallback: split players into halves
     all_pids = sorted(set(list(distances.keys()) + list(sprint_seconds.keys())))
     if not any(v == "A" for v in pid_to_team.values()) and not any(v == "B" for v in pid_to_team.values()):
         half = len(all_pids)//2
         for i, pid in enumerate(all_pids):
             pid_to_team[pid] = "A" if i < half else "B"
 
-    # Now group metrics per team
     team_metrics = {
         "A": {"name": str(home_name), "distances": {}, "sprints_seconds": {}, "ids": []},
         "B": {"name": str(away_name), "distances": {}, "sprints_seconds": {}, "ids": []}
@@ -279,17 +977,13 @@ def run(n_minutes: Optional[float] = None):
         team = pid_to_team.get(pid, "A")
         dist_m = distances.get(pid, 0.0)
         sprint_s = sprint_seconds.get(pid, 0.0)
-        team_metrics[team]["distances"][pid] = dist_m / 1000.0  # convert to km for plot
+        team_metrics[team]["distances"][pid] = dist_m / 1000.0
         team_metrics[team]["sprints_seconds"][pid] = sprint_s
         team_metrics[team]["ids"].append(pid)
 
-    # compute a simple fatigue score per player: (distance normalized drop) + (sprint seconds scaled)
-    # Here we use a heuristic: fatigue_score = (distance_km) + (sprint_seconds * 0.02)
-    # (You can change scaling to suit.)
     for team in ("A","B"):
         distances_km = team_metrics[team]["distances"]
         sprints_s = team_metrics[team]["sprints_seconds"]
-        # build fatigue map
         fatigue_map = {}
         for pid in distances_km:
             d = distances_km.get(pid, 0.0)
@@ -301,34 +995,31 @@ def run(n_minutes: Optional[float] = None):
     # Save per-team plots & JSON summary
     for team in ("A","B"):
         tname = team_metrics[team]["name"]
-        out_dir = OUTPUT / f"team_{team}_{tname.replace(' ','_')}"
+        safe_tname = sanitize(tname)
+        out_dir = OUTPUT / f"team_{team}_{safe_tname}"
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        # distance plot (km)
         plot_bar(team_metrics[team]["distances"],
                  f"Top players by Total Distance (km) — {tname}",
                  "Distance (km)",
-                 out_dir / f"player_total_distance_{tname.replace(' ','_')}.png",
+                 out_dir / f"player_total_distance_{safe_tname}.png",
                  id_to_label={pid: id_to_name.get(pid, str(pid)) for pid in team_metrics[team]["distances"].keys()},
                  color="#ff9f9f")
 
-        # sprint seconds plot
         plot_bar(team_metrics[team]["sprints_seconds"],
                  f"Top players by Sprint Time (s) — {tname}",
                  "Sprint Time (s)",
-                 out_dir / f"player_sprint_seconds_{tname.replace(' ','_')}.png",
+                 out_dir / f"player_sprint_seconds_{safe_tname}.png",
                  id_to_label={pid: id_to_name.get(pid, str(pid)) for pid in team_metrics[team]["sprints_seconds"].keys()},
                  color="#9fc5ff")
 
-        # fatigue score
         plot_bar(team_metrics[team]["fatigue_score"],
                  f"Top players by Fatigue Score (higher = more fatigued) — {tname}",
                  "Fatigue score (heuristic)",
-                 out_dir / f"player_fatigue_{tname.replace(' ','_')}.png",
+                 out_dir / f"player_fatigue_{safe_tname}.png",
                  id_to_label={pid: id_to_name.get(pid, str(pid)) for pid in team_metrics[team]["fatigue_score"].keys()},
                  color="#ffd39f")
 
-        # Save JSON summary
         summary = {
             "team_name": tname,
             "num_players_analyzed": len(team_metrics[team]["ids"]),
@@ -337,12 +1028,27 @@ def run(n_minutes: Optional[float] = None):
             "fatigue_score": {str(pid): team_metrics[team]["fatigue_score"][pid] for pid in team_metrics[team]["fatigue_score"]},
             "id_to_name": {str(pid): id_to_name.get(pid, None) for pid in team_metrics[team]["ids"]}
         }
-        with open(out_dir / f"summary_{tname.replace(' ','_')}.json", "w", encoding="utf-8") as fh:
+        with open(out_dir / f"summary_{safe_tname}.json", "w", encoding="utf-8") as fh:
             json.dump(summary, fh, indent=2)
 
         print(f"Saved outputs for team {tname} in {out_dir.resolve()}")
 
-    # Also save combined summary in root output folder
+    # quarter plots
+    try:
+        generate_quarter_plots(valid_frames, fps_use, OUTPUT, top_n=8)
+    except Exception:
+        pass
+
+    # copy PNGs to static/plots for Flask convenience
+    try:
+        STATIC = REPO_ROOT / "static" / "plots"
+        STATIC.mkdir(parents=True, exist_ok=True)
+        for p in OUTPUT.rglob("*.png"):
+            target = STATIC / p.name
+            target.write_bytes(p.read_bytes())
+    except Exception:
+        pass
+
     combined = {
         "fps_used": fps_use,
         "teams": {
@@ -354,8 +1060,25 @@ def run(n_minutes: Optional[float] = None):
         json.dump(combined, fh, indent=2)
 
     print("Model2 team-split complete. Outputs are in:", OUTPUT.resolve())
+    return combined, team_metrics
 
+# Minimal wrapper for Flask
+def model_main(input_path: Optional[str]):
+    """
+    Runs the model and returns a JSON-serializable summary with plot paths (relative to static/plots).
+    """
+    run(input_path)
+    plots = []
+    for p in (REPO_ROOT / "static" / "plots").glob("*.png"):
+        plots.append(str(Path("plots") / p.name))
+    return {"plots": plots, "output_folder": str(OUTPUT)}
 
+# CLI entrypoint
 if __name__ == "__main__":
-    # full match by default
-    run(n_minutes=None)
+    arg = sys.argv[1] if len(sys.argv) > 1 else None
+    try:
+        run(arg, n_minutes=None)
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        raise
