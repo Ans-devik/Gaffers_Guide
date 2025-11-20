@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>SEC Project — Run Models</title>
+</head>
+<body>
+  <h1>SEC Project — Run Models</h1>
+
+  <p>Enter the full filesystem path to a match folder (example shown):</p>
+  <p><code>/Users/nishoosingh/Downloads/model/opendata/data/matches/1925299</code></p>
+
+  <form action="/run_model/1" method="get" style="margin-bottom:18px;">
+    <input name="match_path" placeholder="match path" style="width:520px;">
+    <button type="submit">Run Model 1</button>
+  </form>
+
+  <form action="/run_model/2" method="get" style="margin-bottom:18px;">
+    <input name="match_path" placeholder="match path" style="width:520px;">
+    <button type="submit">Run Model 2</button>
+  </form>
+
+  <form action="/run_model/3" method="get" style="margin-bottom:18px;">
+    <input name="match_path" placeholder="match path" style="width:520px;">
+    <button type="submit">Run Model 3</button>
+  </form>
+
+  <hr>
+  <p>If a model run writes images to <code>static/plots/</code>, they will be shown on the results page.</p>
+</body>
+</html>

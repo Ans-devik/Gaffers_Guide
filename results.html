@@ -1,0 +1,330 @@
+<!-- <!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Model {{ model_id }} Results</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+    }
+    img {
+      max-width: 900px;
+      height: auto;
+      border: 1px solid #ddd;
+      padding: 8px;
+      background: #fafafa;
+    }
+    .file-link {
+      margin-bottom: 10px;
+    }
+    .summary-table {
+      border-collapse: collapse;
+      margin-bottom: 25px;
+      font-size: 16px;
+      width: 60%;
+    }
+    .summary-table th {
+      background: #333;
+      color: white;
+      padding: 10px;
+      text-align: left;
+      width: 200px;
+    }
+    .summary-table td {
+      padding: 10px;
+      border: 1px solid #ccc;
+      background: #fafafa;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Model {{ model_id }} Results</h1>
+
+  <p><strong>Match path:</strong> {{ match_path }}</p>
+
+  {% if result.error %}
+    <div style="color: red; font-weight: bold; margin-top: 10px;">
+      Error: {{ result.error }}
+    </div>
+  {% endif %}
+
+  <hr>
+
+  <!-- ==================== TABLE SUMMARY ==================== -->
+  {% if result.summary_line %}
+    {% set vals = result.summary_line.split(',') %}
+    <h2>Classification Summary</h2>
+    <table class="summary-table">
+      <tr><th>Match ID</th><td>{{ vals[0] if vals|length > 0 else '' }}</td></tr>
+      <tr><th>Attacking</th><td>{{ vals[1] if vals|length > 1 else '' }}</td></tr>
+      <tr><th>Midfield</th><td>{{ vals[2] if vals|length > 2 else '' }}</td></tr>
+      <tr><th>Defence</th><td>{{ vals[3] if vals|length > 3 else '' }}</td></tr>
+      <tr><th>Match Style</th><td>{{ vals[4] if vals|length > 4 else '' }}</td></tr>
+    </table>
+  {% endif %}
+
+  <h2>Output Files</h2>
+
+  {# Helper macro to turn model-returned path into a proper static filename #}
+  {% macro static_url_for(p) -%}
+    {# Normalize: remove leading '/static/' or leading 'static/' if present #}
+    {% if p is not none %}
+      {% if p.startswith('/static/') %}
+        {{ url_for('static', filename=p[8:]) }}
+      {% elif p.startswith('static/') %}
+        {{ url_for('static', filename=p[7:]) }}
+      {% elif p.startswith('/') %}
+        {{ url_for('static', filename=p.lstrip('/')) }}
+      {% else %}
+        {{ url_for('static', filename=p) }}
+      {% endif %}
+    {% else %}
+      {{ '' }}
+    {% endif %}
+  {%- endmacro %}
+
+  {% if result.served_plots %}
+    <p>Files copied to: <code>{{ result.served_output_dir }}</code></p>
+    <ul>
+      {% for p in result.served_plots %}
+        {% set filename = (p[8:] if p.startswith('/static/') else (p[7:] if p.startswith('static/') else (p.lstrip('/') if p.startswith('/') else p))) %}
+        <li class="file-link">
+          <a href="{{ static_url_for(filename) }}" target="_blank" rel="noopener">{{ filename.split('/')[-1] }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+
+    <!-- IMAGE PREVIEW -->
+    <h2>Image Preview</h2>
+    {% for p in result.served_plots %}
+      {% set filename = (p[8:] if p.startswith('/static/') else (p[7:] if p.startswith('static/') else (p.lstrip('/') if p.startswith('/') else p))) %}
+      {% if filename.lower().endswith('.png') or filename.lower().endswith('.jpg') or filename.lower().endswith('.jpeg') or filename.lower().endswith('.svg') %}
+        <div style="margin-bottom:25px;">
+          <img src="{{ static_url_for(filename) }}">
+        </div>
+      {% endif %}
+    {% endfor %}
+
+  {% else %}
+    {% if result.plots %}
+      <p>Files copied to: <code>{{ result.output_folder }}</code></p>
+      <ul>
+        {% for p in result.plots %}
+          {% set filename = (p[8:] if p.startswith('/static/') else (p[7:] if p.startswith('static/') else (p.lstrip('/') if p.startswith('/') else p))) %}
+          <li class="file-link">
+            <a href="{{ static_url_for(filename) }}" target="_blank" rel="noopener">{{ filename.split('/')[-1] }}</a>
+          </li>
+        {% endfor %}
+      </ul>
+
+      <h2>Image Preview</h2>
+      {% for p in result.plots %}
+        {% set filename = (p[8:] if p.startswith('/static/') else (p[7:] if p.startswith('static/') else (p.lstrip('/') if p.startswith('/') else p))) %}
+        {% if filename.lower().endswith('.png') or filename.lower().endswith('.jpg') or filename.lower().endswith('.jpeg') or filename.lower().endswith('.svg') %}
+          <div style="margin-bottom:25px;">
+            <img src="{{ static_url_for(filename) }}">
+          </div>
+        {% endif %}
+      {% endfor %}
+
+    {% else %}
+      <p><strong>No files were returned by the model.</strong></p>
+
+      {% if result.output_folder %}
+        <p>Check the output folder on disk:</p>
+        <pre>{{ result.output_folder }}</pre>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+
+  <hr>
+  <p><a href="{{ url_for('index') }}">← Back</a></p>
+
+</body>
+</html> -->
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Model {{ model_id }} Results</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+    }
+    img {
+      max-width: 900px;
+      height: auto;
+      border: 1px solid #ddd;
+      padding: 8px;
+      background: #fafafa;
+    }
+    .file-link {
+      margin-bottom: 10px;
+    }
+    .summary-table {
+      border-collapse: collapse;
+      margin-bottom: 25px;
+      font-size: 16px;
+      width: 60%;
+    }
+    .summary-table th {
+      background: #333;
+      color: white;
+      padding: 10px;
+      text-align: left;
+      width: 200px;
+    }
+    .summary-table td {
+      padding: 10px;
+      border: 1px solid #ccc;
+      background: #fafafa;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Model {{ model_id }} Results</h1>
+
+  <p><strong>Match path:</strong> {{ match_path }}</p>
+
+  {% if result.error %}
+    <div style="color: red; font-weight: bold; margin-top: 10px;">
+      Error: {{ result.error }}
+    </div>
+  {% endif %}
+
+  <hr>
+
+  <!-- ==================== TABLE SUMMARY ==================== -->
+  {% if result.summary_line %}
+    {% set vals = result.summary_line.split(',') %}
+    <h2>Classification Summary</h2>
+    <table class="summary-table">
+      <tr><th>Match ID</th><td>{{ vals[0] if vals|length > 0 else '' }}</td></tr>
+      <tr><th>Attacking</th><td>{{ vals[1] if vals|length > 1 else '' }}</td></tr>
+      <tr><th>Midfield</th><td>{{ vals[2] if vals|length > 2 else '' }}</td></tr>
+      <tr><th>Defence</th><td>{{ vals[3] if vals|length > 3 else '' }}</td></tr>
+      <tr><th>Match Style</th><td>{{ vals[4] if vals|length > 4 else '' }}</td></tr>
+    </table>
+  {% endif %}
+
+  <h2>Output Files</h2>
+
+  {# Helper macro: returns an absolute URL if p is already absolute,
+     otherwise returns url_for('static', filename=<normalized path>) #}
+  {% macro resolved_url(p) -%}
+    {%- if not p -%}
+      {{ '' }}
+    {%- elif p.startswith('http://') or p.startswith('https://') -%}
+      {{ p }}
+    {%- else -%}
+      {# strip any leading '/static/' or 'static/' so url_for gets the right filename #}
+      {%- set rel = p -%}
+      {%- if rel.startswith('/static/') -%}
+        {{ url_for('static', filename=rel[8:]) }}
+      {%- elif rel.startswith('static/') -%}
+        {{ url_for('static', filename=rel[7:]) }}
+      {%- elif rel.startswith('/') -%}
+        {# a leading slash may mean '/plots/...' or similar -> lstrip #}
+        {{ url_for('static', filename=rel.lstrip('/')) }}
+      {%- else -%}
+        {{ url_for('static', filename=rel) }}
+      {%- endif -%}
+    {%- endif -%}
+  {%- endmacro %}
+
+  {# Helper macro: return a normalized filename (without /static prefix) for display/anchor text #}
+  {% macro normalized_filename(p) -%}
+    {%- if not p -%}
+      {{ '' }}
+    {%- elif p.startswith('http://') or p.startswith('https://') -%}
+      {{ p.split('/')[-1] }}
+    {%- else -%}
+      {%- set rel = p -%}
+      {%- if rel.startswith('/static/') -%}
+        {{ rel[8:].split('/')[-1] }}
+      {%- elif rel.startswith('static/') -%}
+        {{ rel[7:].split('/')[-1] }}
+      {%- elif rel.startswith('/') -%}
+        {{ rel.lstrip('/').split('/')[-1] }}
+      {%- else -%}
+        {{ rel.split('/')[-1] }}
+      {%- endif -%}
+    {%- endif -%}
+  {%- endmacro %}
+
+  {% if result.served_plots %}
+    <p>Files copied to: <code>{{ result.served_output_dir }}</code></p>
+    <ul>
+      {% for p in result.served_plots %}
+        {% set url = resolved_url(p) %}
+        {% set fname = normalized_filename(p) %}
+        <li class="file-link">
+          {% if url %}
+            <a href="{{ url }}" target="_blank" rel="noopener">{{ fname }}</a>
+          {% else %}
+            {{ fname }}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+
+    <!-- IMAGE PREVIEW -->
+    <h2>Image Preview</h2>
+    {% for p in result.served_plots %}
+      {% set url = resolved_url(p) %}
+      {% set lower = p.lower() if p else '' %}
+      {% if url and (lower.endswith('.png') or lower.endswith('.jpg') or lower.endswith('.jpeg') or lower.endswith('.svg')) %}
+        <div style="margin-bottom:25px;">
+          <img src="{{ url }}">
+        </div>
+      {% endif %}
+    {% endfor %}
+
+  {% else %}
+    {% if result.plots %}
+      <p>Files copied to: <code>{{ result.output_folder }}</code></p>
+      <ul>
+        {% for p in result.plots %}
+          {% set url = resolved_url(p) %}
+          {% set fname = normalized_filename(p) %}
+          <li class="file-link">
+            {% if url %}
+              <a href="{{ url }}" target="_blank" rel="noopener">{{ fname }}</a>
+            {% else %}
+              {{ fname }}
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+
+      <h2>Image Preview</h2>
+      {% for p in result.plots %}
+        {% set url = resolved_url(p) %}
+        {% set lower = p.lower() if p else '' %}
+        {% if url and (lower.endswith('.png') or lower.endswith('.jpg') or lower.endswith('.jpeg') or lower.endswith('.svg')) %}
+          <div style="margin-bottom:25px;">
+            <img src="{{ url }}">
+          </div>
+        {% endif %}
+      {% endfor %}
+
+    {% else %}
+      <p><strong>No files were returned by the model.</strong></p>
+
+      {% if result.output_folder %}
+        <p>Check the output folder on disk:</p>
+        <pre>{{ result.output_folder }}</pre>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+
+  <hr>
+  <p><a href="{{ url_for('index') }}">← Back</a></p>
+
+</body>
+</html>
