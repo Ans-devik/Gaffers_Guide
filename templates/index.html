@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tactical Analyzer — Run Model</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <a class="brand" href="/">
+        <div class="logo">AI</div>
+        <div>
+          <div class="title">Tactical Analyzer</div>
+          <div class="subtitle">Run models • visualize outputs</div>
+        </div>
+      </a>
+      <div class="small-muted">Local dev</div>
+    </header>
+
+    <main class="grid">
+      <section class="card">
+        <h2 style="margin-bottom:10px">Run a model</h2>
+        <p class="muted mb-6">Select which model to run and provide a full `match_path` (filesystem path) as your `app.py` expects.</p>
+
+        <form id="runForm" action="#" method="GET" enctype="multipart/form-data">
+          <div class="form-row">
+            <label class="small-muted">Model</label>
+            <select id="modelSelect" name="model" class="input">
+              <option value="1">model1</option>
+              <option value="2">model2</option>
+              <option value="3">model3</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label class="small-muted">match_path (full filesystem path)</label>
+            <input id="matchPath" name="match_path" class="input" placeholder="/full/path/to/opendata/data/matches/192529" />
+          </div>
+
+          <div style="margin-top:12px;">
+            <button class="btn" id="runBtn" type="button">Run model</button>
+            <a class="btn secondary" href="{{ url_for('index') }}" style="margin-left:8px">Reset</a>
+          </div>
+        </form>
+
+        <div class="mt-8">
+          <h4 style="margin-bottom:8px;">Recent plots</h4>
+          <div class="recent-gallery">
+            {% set recent = [] %}
+            {% if recent %}
+              {% for p in recent %}
+                <a class="recent-thumb" href="{{ p }}" target="_blank"><img src="{{ p }}" alt="plot {{ loop.index }}"></a>
+              {% endfor %}
+            {% else %}
+              <div class="muted">No recent plots to preview here. Run a model to generate images (they'll be saved to static/plots/).</div>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+
+      <aside>
+        <div class="card">
+          <h4>Usage notes</h4>
+          <ul style="margin-top:8px; color:var(--muted); line-height:1.6;">
+            <li>Your model scripts should accept a filesystem path (match folder) — that's what your `app.py` passes.</li>
+            <li>Results and images are copied into <code>static/plots/&lt;run_id&gt;/</code> and served from there.</li>
+            <li>Use the Run button above — it opens the results view with the chosen model.</li>
+          </ul>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    // Build GET request to /run_model/<model_id>?match_path=...
+    document.getElementById('runBtn').addEventListener('click', function(){
+      const modelId = document.getElementById('modelSelect').value;
+      const matchPath = encodeURIComponent(document.getElementById('matchPath').value.trim());
+      if(!matchPath){
+        alert("Please enter a match_path (full filesystem path).");
+        return;
+      }
+      // Use window.location to navigate to route (GET)
+      window.location.href = `/run_model/${modelId}?match_path=${matchPath}`;
+    });
+  </script>
+</body>
+</html>

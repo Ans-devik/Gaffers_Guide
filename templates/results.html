@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Results — Tactical Analyzer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#f6f8fb;color:#0f1724;margin:0;padding:20px}
+    .container{max-width:1100px;margin:0 auto}
+    .card{background:#fff;border-radius:8px;padding:12px;border:1px solid #eef2ff}
+    .gallery{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+    .plot-card{width:220px;border-radius:8px;padding:8px;background:#fff;border:1px solid #f1f5f9}
+    .plot-thumb{height:140px;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:6px;background:#fff}
+    .plot-thumb img{max-width:100%;max-height:100%;display:block}
+    .plot-actions{display:flex;gap:6px;margin-top:8px}
+    .btn{padding:6px 8px;border-radius:6px;border:1px solid #e6e9f2;background:#fff;cursor:pointer;text-decoration:none;color:inherit;font-size:13px}
+    .btn.secondary{background:#f8fafc}
+    .muted{color:#6b7280;font-size:13px}
+    pre.debug{background:#0b1220;color:#dff1ff;padding:10px;border-radius:6px;overflow:auto;font-size:13px}
+    .lightbox{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.75);z-index:9999}
+    .lightbox img{max-width:95vw;max-height:95vh;border-radius:6px}
+    .file-preview{font-family:monospace;background:#fafafa;border:1px solid #eee;padding:8px;border-radius:6px;max-height:140px;overflow:auto;margin-top:8px}
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div style="width:44px;height:44px;border-radius:6px;background:#0f1724;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700">AI</div>
+        <div>
+          <div style="font-weight:700">Tactical Analyzer</div>
+          <div class="muted">Results</div>
+        </div>
+      </div>
+      <div>
+        <a class="btn secondary" href="{{ url_for('index') }}">Run another</a>
+      </div>
+    </header>
+
+    <main class="card">
+      <h3 style="margin:0 0 8px 0">Model Output</h3>
+
+      {# DEBUG: show what template received. Remove or hide once working. #}
+      <div style="margin-bottom:10px">
+        <div class="muted" style="margin-bottom:6px">Debug &mdash; served_plots value received by template:</div>
+        <pre class="debug">{{ result.served_plots }}</pre>
+      </div>
+
+      <div style="display:grid;grid-template-columns:360px 1fr;gap:18px;align-items:start">
+        <!-- LEFT: Gallery -->
+        <aside>
+          <h4 style="margin-top:0">Plots & Visuals</h4>
+
+          {% set plots = result.served_plots if (result is defined and result.served_plots is defined) else [] %}
+          {% if plots and plots|length > 0 %}
+            <div class="gallery" id="gallery">
+              {% for p in plots %}
+                {# normalize p -> static_url:
+                   - if p starts with http(s) or /static/ use as-is
+                   - if p looks like 'plots/...' or 'static/plots/...' wrap with url_for('static', filename=p)
+                #}
+                {% set static_url = p %}
+                {% if p is string %}
+                  {% if not (p.startswith('http://') or p.startswith('https://') or p.startswith('/static/')) %}
+                    {% set static_url = url_for('static', filename=p) %}
+                  {% endif %}
+                {% endif %}
+
+                {# fallback: make sure static_url is a string #}
+                {% if static_url is not string %}
+                  {% set static_url = '' %}
+                {% endif %}
+
+                {% set ext = (static_url.rsplit('.',1)[-1].lower() if '.' in static_url else '') %}
+                {% set is_image = ext in ['png','jpg','jpeg','svg','gif','webp'] %}
+                <div class="plot-card card" data-src="{{ static_url }}">
+                  <div class="plot-thumb">
+                    {% if is_image and static_url %}
+                      <img src="{{ static_url }}" alt="plot {{ loop.index }}" loading="lazy" onerror="this.dataset.err=1; this.style.display='none'">
+                    {% else %}
+                      <div style="padding:12px;color:#8b95a6;text-align:center;font-size:13px">
+                        {{ ext|upper if ext else 'FILE' }}<br>
+                        <small style="color:#a1a8b3">{{ static_url.split('/')[-1] if static_url else 'unknown' }}</small>
+                      </div>
+                    {% endif %}
+                  </div>
+
+                  <div class="plot-actions">
+                    <button class="btn view" type="button" data-src="{{ static_url|e }}">View</button>
+                    <a class="btn secondary" href="{{ static_url }}" download>Download</a>
+                    <button class="btn reload" type="button" data-src="{{ static_url|e }}">Reload</button>
+                  </div>
+
+                  <div class="file-preview" data-preview-for="{{ static_url }}" style="display:none"></div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="muted">No plots found.</div>
+          {% endif %}
+        </aside>
+
+        <!-- RIGHT: Raw JSON + Tables -->
+        <section>
+          <button id="toggleRaw" class="btn" style="margin-bottom:10px">Show raw result</button>
+          <div id="rawBlock" class="file-preview" style="display:none;white-space:pre-wrap">{{ result | tojson(indent=2) }}</div>
+
+          {% set tables = result.tables if (result is defined and result.tables is defined) else [] %}
+          {% if tables and tables|length > 0 %}
+            <h4 style="margin-top:12px">Summary tables</h4>
+            {% for t in tables %}
+              <div class="card" style="margin-bottom:12px">
+                <strong>{{ t.title }}</strong>
+                <div style="overflow:auto;margin-top:8px">
+                  <table style="border-collapse:collapse;width:100%">
+                    <thead>
+                      <tr>
+                        {% for c in t.columns %}<th style="text-align:left;padding:8px;border-bottom:1px solid #eee">{{ c }}</th>{% endfor %}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for row in t.rows %}
+                        <tr>
+                          {% for c in t.columns %}
+                            {% set cell = row.get(c) if row is mapping else (row[c] if c in row else '') %}
+                            <td style="padding:8px;border-bottom:1px solid #fafafa;font-size:13px">{{ cell if cell is not none else '' }}</td>
+                          {% endfor %}
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            {% endfor %}
+          {% endif %}
+        </section>
+      </div>
+    </main>
+
+    <div id="lightbox" class="lightbox" role="dialog" onclick="closeLB()">
+      <img id="lbImg" src="" alt="preview">
+    </div>
+  </div>
+
+  <script>
+    // Simple helpers
+    const openLB = (src) => {
+      if(!src) return;
+      const lb = document.getElementById('lightbox');
+      const img = document.getElementById('lbImg');
+      img.src = src;
+      lb.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    };
+    const closeLB = () => {
+      const lb = document.getElementById('lightbox');
+      const img = document.getElementById('lbImg');
+      lb.style.display = 'none';
+      img.src = '';
+      document.body.style.overflow = '';
+    };
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeLB(); });
+
+    // View buttons
+    document.querySelectorAll('.view').forEach(btn=>{
+      btn.addEventListener('click', ()=> {
+        const src = btn.dataset.src;
+        if(!src) return;
+        if(src.match(/\.(png|jpg|jpeg|svg|gif|webp)(\?.*)?$/i)) {
+          openLB(src);
+        } else {
+          window.open(src, '_blank');
+        }
+      });
+    });
+
+    // Reload (cache-bust)
+    document.querySelectorAll('.reload').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const src = b.dataset.src;
+        if(!src) return;
+        const card = b.closest('.plot-card');
+        const img = card && card.querySelector('img');
+        const newUrl = src + (src.includes('?') ? '&' : '?') + '_t=' + Date.now();
+        if(img) img.src = newUrl;
+        // attempt to refresh preview for non-images:
+        fetchPreview(src, card);
+      });
+    });
+
+    // Toggle raw JSON
+    const toggle = document.getElementById('toggleRaw');
+    const raw = document.getElementById('rawBlock');
+    if(toggle && raw) {
+      toggle.addEventListener('click', ()=> {
+        raw.style.display = raw.style.display==='none' || raw.style.display==='' ? 'block' : 'none';
+        toggle.textContent = raw.style.display==='block' ? 'Hide raw result' : 'Show raw result';
+      });
+    }
+
+    // For CSV/JSON file preview: fetch first lines
+    async function fetchSnippet(url, maxLines=10) {
+      try {
+        const resp = await fetch(url, {cache:'no-store'});
+        if(!resp.ok) return 'HTTP ' + resp.status;
+        const text = await resp.text();
+        const lines = text.split(/\r?\n/).slice(0,maxLines).filter(Boolean);
+        return lines.length ? lines.join('\n') : '(empty)';
+      } catch (err) { return 'Fetch failed: ' + (err.message || err); }
+    }
+
+    async function fetchPreview(url, card) {
+      if(!card) return;
+      const preview = card.querySelector('.file-preview[data-preview-for="'+url+'"]') || card.querySelector('.file-preview');
+      if(!preview) return;
+      preview.style.display = 'block';
+      preview.textContent = 'Loading preview...';
+      const snippet = await fetchSnippet(url);
+      preview.textContent = snippet;
+    }
+
+    // On load, try to preview CSV/JSONs
+    document.querySelectorAll('.plot-card').forEach(card=>{
+      const src = card.dataset.src;
+      if(!src) return;
+      if(src.match(/\.(csv|json|jsonl)(\?.*)?$/i)) {
+        fetchPreview(src, card);
+      }
+    });
+
+    // If images don't display, console hint
+    if(document.querySelectorAll('.plot-thumb img').length === 0) {
+      console.info('No image thumbnails detected. Check the debug box above to see what served_plots contains.');
+    }
+  </script>
+</body>
+</html>
