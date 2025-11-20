@@ -1,0 +1,17 @@
+# --- PATCH: normalize served_plots for model3 ---
+normalized = []
+for p in served_plots:
+    if not p.startswith("/static/"):
+        normalized.append("/static/" + p)
+    else:
+        normalized.append(p)
+
+result_out = {
+    "served_plots": normalized,
+    "plots": normalized,
+    "served_output_dir": str(used_output) if used_output else str(repo_root),
+    "output_folder": str(used_output) if used_output else str(repo_root),
+    "summary_line": summary_line,
+    "tables": []
+}
+return result_out
