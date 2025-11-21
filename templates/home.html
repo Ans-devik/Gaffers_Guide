@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Home — Tactical AI{% endblock %}
+{% block content %}
+<section class="grid-2">
+  <div class="card">
+    <h3>Hello, {{ session.get('user', 'Guest') }}</h3>
+    <p class="muted">Quick links & latest runs</p>
+
+    <div class="tiles">
+      <a class="tile" href="{{ url_for('results') }}">
+        <strong>Latest Analysis</strong>
+        <span class="muted">View latest match results & plots</span>
+      </a>
+      <a class="tile" href="{{ url_for('results') }}">
+        <strong>Formation Finder</strong>
+        <span class="muted">Open last formation output</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- <div class="card">
+    <h4>Recent plots</h4>
+    <div class="plots-row">
+      <img alt="plot1" src="{{ url_for('static', filename='plots/plot1.png') }}" class="mini-plot">
+      <img alt="plot2" src="{{ url_for('static', filename='plots/plot2.png') }}" class="mini-plot">
+      <img alt="plot3" src="{{ url_for('static', filename='plots/plot3.png') }}" class="mini-plot">
+    </div>
+    <p class="muted small">Click Results to open full visualizations.</p>
+  </div> -->
+  <!-- Run Model Panel: paste inside templates/home.html -->
+<div class="card" style="margin-top:16px;">
+  <h4>Run a model</h4>
+  <p class="muted">Pick a model and provide the match folder path</p>
+
+  <form id="runForm" method="get" onsubmit="prepareRunForm(event)" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    <label style="min-width:140px;">
+      Model
+      <select id="modelSelect" name="model" style="width:100%;padding:8px;border-radius:8px;">
+        <option value="1">Model 1</option>
+        <option value="2">Model 2</option>
+        <option value="3">Model 3</option>
+      </select>
+    </label>
+
+    <label style="flex:1;min-width:320px;">
+      Match path
+      <input id="matchPath" name="match_path" type="text" required placeholder="/path/to/match/folder" style="width:100%;padding:10px;border-radius:8px;">
+    </label>
+
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button type="submit" class="btn primary">Run</button>
+      <button type="button" class="btn" onclick="fillExample()">Example</button>
+    </div>
+  </form>
+
+  <p class="muted small" style="margin-top:8px;">
+    The model will copy outputs into <code>static/plots/&lt;run_id&gt;/</code> and the Results page will display them.
+  </p>
+</div>
+
+<script>
+  // On submit, set the form's action to /run_model/<model_id>
+  function prepareRunForm(e){
+    const form = document.getElementById('runForm');
+    const model = document.getElementById('modelSelect').value;
+    const matchPathInput = document.getElementById('matchPath');
+    if(!matchPathInput.value.trim()){
+      alert('Please enter match_path (path to match output folder).');
+      e.preventDefault();
+      return false;
+    }
+    // Use GET so Flask reads the match_path from request.values
+    form.method = 'get';
+    form.action = '/run_model/' + encodeURIComponent(model);
+    // let it submit
+    return true;
+  }
+
+  // convenience filler — replace with a real example path you use
+  function fillExample(){
+    document.getElementById('matchPath').value = '/Users/anshulsingh/Downloads/model/opendata/data/matches/192529';
+  }
+</script>
+
+
+</section>
+{% endblock %}

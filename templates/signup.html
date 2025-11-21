@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Sign up — Tactical AI{% endblock %}
+{% block content %}
+<section class="card auth-card">
+  <h2>Create your account</h2>
+  <p class="muted">Start analyzing matches in seconds</p>
+
+  <form method="post" action="{{ url_for('signup') }}" class="form">
+    <label>Full name
+      <input name="name" type="text" required placeholder="Anshul Singh">
+    </label>
+
+    <label>Email
+      <input name="email" type="email" required placeholder="you@domain.com">
+    </label>
+
+    <label>Password
+      <div class="inline-input">
+        <input id="pwd2" name="password" type="password" required placeholder="Choose a secure password">
+        <button type="button" class="eye" onclick="togglePwd('pwd2')">👁️</button>
+      </div>
+    </label>
+
+    <div class="form-actions">
+      <button class="btn primary" type="submit">Create account</button>
+      <a class="link muted" href="{{ url_for('login') }}">Have an account? Sign in</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
